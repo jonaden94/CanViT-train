@@ -7,18 +7,17 @@ unit tests.
 
 | group | what it trains | runs | judged on | status |
 |---|---|---|---|---|
-| `exp32_pretrain_lrdrop` | `distill` pretraining from scratch, then an LR decay phase | 4 | `val/scene_cos_raw_t9` | training |
-| `exp33_in1k_finetune` | `in1k` full finetunes of four pretrained backbones | 4 | top-1 | training |
+| `exp32_pretrain_lrdrop` | `distill` pretraining from scratch, then an LR decay phase | 4 (+5 seeds) | `val/scene_cos_raw_t9` | **phase A complete** |
+| `exp33_in1k_finetune` | `in1k` full finetunes of four pretrained backbones | 4 | top-1 | **complete** |
 | `exp34_ade20k_probe` | `ade20k` frozen segmentation probes on the same four | 4 | CE and mIoU | **complete** |
 | `exp35_policy_qreg_10seed` | ADE20K viewpoint policy (Q-regression), 10 seeds | 10 | CE and mIoU | **complete** |
 
 Each group below has the same two sections: **Setup** (what is run and how) and **Results**.
 
-For exp34 and exp35 the results are these runs' own. **exp32 and exp33 are still training,
-so instead of reporting partial curves those sections give the results of earlier runs of
-the same configuration** — `jon_exp22_full_runs` for pretraining and `exp25` for the IN1k
-finetunes — with the differences spelled out. Every borrowed number is labelled with the run
-it came from.
+All four groups have now produced their results. exp32's phase A is finished but its LR
+decay phase (phase B) has not been run; where that section compares against
+`jon_exp22_full_runs` it says so explicitly, because exp22 is the only campaign that
+completed a decay phase.
 
 ## Shared procedure
 
@@ -71,36 +70,46 @@ coarse-to-fine, foveated arms under a fixation grid at their training scale (2.0
 
 ### Results
 
-The four arms are still in phase A, so there is nothing final to report here yet.
+Phase A finished for all four arms. Best `val/scene_cos_raw_t9`, and where each stopped:
 
-**Reference: `jon_exp22_full_runs`**, the earlier pretrains of these same four
-configurations — and the models exp33 and exp34 actually finetune and probe. Same
-architecture, optimizer, LR schedule shape, BPTT and validation set; see *Differences* below
-for what is not the same. `val/scene_cos_raw_t9`:
+| arm | reached / target | best | at step | final | drift |
+|---|---|---|---|---|---|
+| `exp32-uniform16-teacherinit` | 622,592 / 630,784 | **0.9390** | 614,400 | 0.9390 | +0.0000 |
+| `exp32-uniform16` | 1,433,600 / 1,441,792 | **0.9186** | 1,425,408 | 0.9186 | +0.0000 |
+| `exp32-fovi` | 2,007,040 / 2,007,040 | **0.9258** | 1,916,928 | 0.9256 | −0.0002 |
+| `exp32-fovi-teacherinit` | 1,130,496 / 1,130,496 | **0.9182** | 729,088 | 0.8750 | **−0.0432** |
 
-| arm | phase A @4e-4 | decay @4e-5 | 2nd decay @4e-6 | best |
-|---|---|---|---|---|
-| `uniform16-teacherinit` | 0.9398 @ 638,976 | 0.9477 (+163,840 steps) | 0.9481 (+16,384) | **0.9481** |
-| `fovi-teacherinit` | 0.9362 @ 1,196,032 | 0.9423 (+245,760 steps) | — | **0.9423** |
-| `uniform16` | 0.9199 @ 1,515,520 | 0.9262 (+368,640 steps) | — | **0.9262** |
-| `fovi` | 0.9248 @ 1,941,504 | *no decay phase was run* | — | **0.9248** |
+**`exp32-fovi-teacherinit` degraded in the second half.** It peaked at step 729k and fell
+0.043 by 1.12M while the other three arms drifted ≤0.0002. Its phase-B drop file exists, but
+seeding a decay phase from step-1130496 would start from the degraded state, not the peak.
+That anomaly is unexplained and worth diagnosing before any decay run on this arm.
 
-Two things to read off this. **The decay phase is worth +0.006 to +0.008** on every arm that
-got one, which is large next to the differences between arms. And **`fovi` never got one**,
-so its 0.9248 is a constant-LR number and is not comparable to the other three — the gap
-between `fovi` and `fovi-teacherinit` is inflated by the missing decay.
+The two `uniform16` arms are one 8192-step chunk short of their drop step because both lost
+their final array task to a node fault (`ggpu150`, `NVML: GPU is lost`, 2026-08-06 09:29).
+Their phase-B launchers gate on an exact filename, so each needs a one-task top-up before
+phase B can be submitted.
 
-**Differences between exp22 and exp32** — the reason these are reference numbers rather than
-targets:
+**Comparison with `jon_exp22_full_runs`**, the only campaign that ran a decay phase:
+
+| arm | exp32 phase A | exp22 phase A | exp22 after decay |
+|---|---|---|---|
+| `uniform16-teacherinit` | 0.9390 @ 614k | 0.9398 @ 639k | 0.9477 (4e-5), 0.9481 (+4e-6) |
+| `uniform16` | 0.9186 @ 1,425k | 0.9199 @ 1,516k | 0.9262 (4e-5) |
+| `fovi` | 0.9258 @ 1,999k | 0.9248 @ 1,942k | *no decay was run* |
+| `fovi-teacherinit` | see above | 0.9362 @ 1,196k | 0.9423 (4e-5) |
+
+Three arms reproduce exp22's phase A within 0.001–0.002. The decay phase is worth
++0.006–0.008 wherever it was run, so exp32's phase-A numbers are not directly comparable to
+exp22's decayed ones.
+
+**Differences between exp22 and exp32** — why these are reference numbers, not targets:
 
 1. **Normalizer statistics.** exp32 pools the first 4 sorted shards; exp22 used a single
    shard (`shard-001751`, 4096 samples). Different standardization of the DINOv3 targets,
-   so the loss scale is not identical and the curves do not overlay exactly.
-2. **Decay schedule.** exp32 does exactly one ×0.1 drop per arm. exp22's
-   `uniform16-teacherinit` got two (4e-5 then 4e-6), and its `fovi` arm got none. exp32's
-   uniform-ti arm should therefore be compared against the 0.9477 one-drop figure, not
-   0.9481, and its `fovi` arm has no decayed counterpart at all.
-3. **Drop steps.** exp22 dropped at 638,976 / 1,196,032 / 1,515,520; exp32 drops at
+   so the loss scale is not identical and curves do not overlay exactly.
+2. **Decay schedule.** exp22's `uniform16-teacherinit` got two drops (4e-5 then 4e-6) and
+   its `fovi` arm none; exp32 plans exactly one per arm.
+3. **Drop steps.** exp22 dropped at 638,976 / 1,196,032 / 1,515,520; exp32 at
    630,784 / 1,130,496 / 1,441,792.
 4. **Seeding.** The older trainer never called `torch.manual_seed`, so each exp22 run drew
    an unreproducible random init. exp32 seeds before `build_model`.
@@ -121,8 +130,27 @@ statistics, which pool the first 4 sorted shards and are identical across seeds.
 `SEED=0` to protect that run's directory.
 
 They exist to measure how much a foveated pretrain moves between seeds, which nothing in
-this stack had quantified. Compare on `train/full/scene_cos_raw`, which is independent of the
-eval-viewpoint convention. Still queued — no results yet.
+this stack had quantified.
+
+**Result.** `val/scene_cos_raw_t9` at step 188,416, the last point all six share (s2 stopped
+one chunk early on a 2 h timeout):
+
+| s0 | s1 | s2 | s3 | s4 | s5 |
+|---|---|---|---|---|---|
+| 0.8922 | 0.9075 | 0.9175 | 0.9075 | 0.9196 | 0.9164 |
+
+mean **0.9101**, sd **0.0102**, spread **0.0274**. `exp22-fovi-teacherinit` scores 0.9070 at
+the same step — **inside the range and just below the harness mean**.
+
+This settles a question that was open for a month. `exp32-fovi-teacherinit` (seed 0) had
+appeared to run ~0.019 below its exp22 counterpart, which looked like an implementation
+deficit in the foveated path. It is not: seed 0 is simply the lowest of six draws, and the
+seed-to-seed spread of this configuration (0.027) is larger than the gap that prompted the
+investigation. Nothing needs fixing.
+
+The corollary is a measurement rule: **a single foveated pretrain cannot resolve a
+difference below ~0.03 in this metric.** Two configurations closer together than that are
+indistinguishable without several seeds each.
 
 ---
 
@@ -149,27 +177,20 @@ exists nowhere else — loads straight from its `.pt` via `load_classifier`.
 
 ### Results
 
-All four arms are early (16k–57k of 401,408 steps), so no final top-1 yet.
+All four arms complete. Best `eval/top1`:
 
-**Reference: `exp25`**, the earlier finetunes of the same configuration. The launcher flags
-are identical — same `--cfg.model-repo` checkpoints, `--cfg.peak-lr 6.25e-6`,
-`--cfg.warmup-steps 100000`, `--cfg.n-timesteps 4`, `--cfg.max-steps 401408`,
-`--cfg.label-smoothing 0.1`, `--cfg.grad-clip 1.0`, `--cfg.train-start-full` — and exp25 is
-pinned at `8f780ba`, the commit that fuses the pretrained probe head, so its first training
-losses (1.57–1.82) confirm it did not start from a random classifier. Best `eval/top1`:
-
-| arm | exp25 result | run length |
+| arm | best `eval/top1` | run length |
 |---|---|---|
-| `in1k-uni16ti-803k` | **0.84954** | complete, 401,408 |
-| `in1k-fovi-ti-1196k` | **0.83692** | *stopped at 327,680* — a floor, not a final value |
-| `in1k-uni16-1516k` | **0.83522** | complete, 401,408 |
-| `in1k-fovi-1901k` | *not run in exp25* | — |
+| `in1k-uni16ti-803k` | **0.84962** | 393,216 of 401,408 |
+| `in1k-fovi-ti-1196k` | **0.83716** | 401,408 |
+| `in1k-uni16-1516k` | **0.83504** | 401,408 |
+| `in1k-fovi-1901k` | **0.82718** | 401,408 |
 
-So exp33 adds the missing `fovi-1901k` arm and takes `fovi-ti` to full length; the other two
-are straight repeats on the current code.
+Ordering `uni16ti > fovi-ti > uni16 > fovi`. Teacher init is worth ~1.4 pp on the uniform
+patcher and ~1.0 pp on the foveated one.
 
-The only difference from exp25 is the pinned code (`8f780ba` → `716051a`, `canvit_pretrain`
-→ `canvit_train`) and the run/project names.
+`uni16ti-803k` is one 8192-step chunk short: its final array task hit the 2 h wall, and the
+arrays were sized with no slack. Its curve had already flattened, so the number stands.
 
 ---
 

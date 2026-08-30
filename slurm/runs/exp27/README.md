@@ -132,7 +132,7 @@ Arm A is re-run anyway for two reasons:
 
 **Rule (learned in exp23/exp26): never gate a production A/B on one baseline run.** If A
 and B disagree, the next step is a second seed of A — not a verdict. See
-[[../../unification_docs/14-parity-coverage.md]].
+[[../../../unification_docs/14-parity-coverage.md]].
 
 ## Verdict rule
 
@@ -153,7 +153,7 @@ and `reward_frac` trending positive. A policy that is learning nothing shows a f
 ## What had to be fixed before B was even meaningful
 
 All 2026-07-28/29, committed in `cea4dee`, detailed in
-[[../../unification_docs/15-rl-recipe-parity-and-open-items.md]] §A:
+[[../../../unification_docs/15-rl-recipe-parity-and-open-items.md]] §A:
 
 1. **Validation deployed no policy.** `--preset policy_only` validated on RANDOM
    glimpses and selected `best.pt` on that mIoU. Fixed by the shared `eval_policy` knob

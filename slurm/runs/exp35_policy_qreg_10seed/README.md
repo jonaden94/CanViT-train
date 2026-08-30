@@ -46,7 +46,7 @@ c64 probe. Both stay Hub ids so this is config-identical to exp31.
 
 Those could now be local `.pt` files instead — `--cfg.probe-repo` accepts a training
 checkpoint directly — but changing them would make this something other than a replication.
-See `../policy_on_exp30_fovi_ti/` for a policy arm that does use local `.pt` sources.
+See `../policy_on_own_fovi_probe/` for a policy arm that does use local `.pt` sources.
 
 `--preset policy_only`, 8000 steps, 5 timesteps, batch 16, canvas grid 64,
 `eval_policy=policy`, `--cfg.no-augment`. Single GPU per seed.
