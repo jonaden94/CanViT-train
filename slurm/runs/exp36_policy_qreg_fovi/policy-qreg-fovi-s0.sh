@@ -40,13 +40,13 @@
 # full-image anchor.)
 #
 # Full procedure: readme_docs/q_policy_foveated.md
-# 10 seeds: for s in 0 1 2 3 4 5 6 7 8 9; do SEED=$s bash slurm/runs/policy_on_own_fovi_probe/policy-qreg-own-fovi-s0.sh; done
+# 10 seeds: for s in 0 1 2 3 4 5 6 7 8 9; do SEED=$s bash slurm/runs/exp36_policy_qreg_fovi/policy-qreg-fovi-s0.sh; done
 set -euo pipefail
 
 # === ESSENTIALS ===
-RUN_GROUP=policy_on_own_fovi_probe
+RUN_GROUP=jon_exp36_policy_qreg_fovi
 SEED="${SEED:-0}"
-RUN_NAME=policy-qreg-own-fovi-s$SEED
+RUN_NAME=exp36-policy-qreg-fovi-s$SEED
 ARRAY=0-0%1                  # single job: 9000 steps fits inside the walltime
 TIME="${TIME:-0-08:00:00}"
 MEM=64G
@@ -59,7 +59,7 @@ CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/
 CFG_PROBE_REPO=$_PROBE_RUN/best.pt   # the training checkpoint itself; no conversion
 
 # === config (exp31 lossfix recipe; only the grid follows the probe) ===
-CFG_WANDB_PROJECT=policy_on_own_fovi_probe
+CFG_WANDB_PROJECT=jon_exp36_policy_qreg_fovi
 CFG_SEED=$SEED
 CFG_MAX_STEPS=9000           # 9000, not 8000: the loop evaluates on step % val_every == 0
                              # and never reaches max_steps, so an 8000-step run's last eval
@@ -75,9 +75,9 @@ CFG_NUM_WORKERS=4
 EXTRA_ARGS="--preset policy_only --cfg.no-augment --cfg.foveated-scale.fixed-scale 2.0"
 # =================
 
-TRAIN_COMMIT=""              # set to a commit hash to pin the code for a long run
-PYTORCH_COMMIT=""
-FOVI_COMMIT=""
+TRAIN_COMMIT=7f01b26
+PYTORCH_COMMIT=d616b7b
+FOVI_COMMIT=c399d3b
 
 # Repo root, derived from this script's own location (slurm/runs/<group>/<run>.sh),
 # so the run submits from YOUR clone rather than one hardcoded checkout.
