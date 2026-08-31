@@ -48,7 +48,7 @@ RUN_GROUP=jon_exp36_policy_qreg_fovi
 SEED="${SEED:-0}"
 RUN_NAME=exp36-policy-qreg-fovi-s$SEED
 ARRAY=0-0%1                  # single job: 9000 steps fits inside the walltime
-TIME="${TIME:-0-08:00:00}"
+TIME="${TIME:-0-02:00:00}"   # <=2h lands in the FAST 2h QOS (minutes vs ~24-31h). exp35's 10 seeds measured 01:14 each at canvas 64; this is canvas 32.
 MEM=64G
 NGPU=1                       # ade20k is single-GPU only (supports_ddp=False)
 TASK=ade20k
