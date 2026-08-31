@@ -46,7 +46,7 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parent.parent
-TRAINED_DIR = REPO / "logs/exp35_policy_qreg_10seed"
+TRAINED_DIR = REPO / "logs/jon_exp35_policy_qreg_10seed"
 PROBE_REPO = "canvit/probe-ade20k-40k-s512-c64-in21k"
 T = 5
 

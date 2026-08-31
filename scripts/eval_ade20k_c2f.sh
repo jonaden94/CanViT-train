@@ -21,7 +21,7 @@
 set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GROUP=${1:-exp34_ade20k_probe}
+GROUP=${1:-jon_exp34_ade20k_probe}
 OUT=${2:-logs/$GROUP/_c2f_eval}
 mkdir -p "$OUT"
 

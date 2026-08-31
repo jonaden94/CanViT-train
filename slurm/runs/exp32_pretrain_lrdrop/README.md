@@ -7,7 +7,7 @@ lines makes every launcher byte-identical to its exp28 counterpart).
 
 exp28 was cancelled part-way — 7 / 5 / 7 / 3 array tasks had completed on the
 uniform16-teacherinit / fovi-teacherinit / uniform16 / fovi arms. exp32 does not resume it:
-a new run group means an empty `logs/exp32_pretrain_lrdrop/<arm>/checkpoints/`, so distill's
+a new run group means an empty `logs/jon_exp32_pretrain_lrdrop/<arm>/checkpoints/`, so distill's
 default `--opts.resume` finds nothing and every arm starts at step 0.
 
 ## Pins

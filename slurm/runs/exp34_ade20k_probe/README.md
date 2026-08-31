@@ -34,7 +34,7 @@ only a `model_repo` path, so an exp34 checkpoint can rebuild itself:
 
 ```python
 from canvit_pytorch.model_source import load_segmentation
-seg = load_segmentation("logs/exp34_ade20k_probe/<run>/checkpoints/best.pt")
+seg = load_segmentation("logs/jon_exp34_ade20k_probe/<run>/checkpoints/best.pt")
 ```
 
 For a frozen **probe** this matters less than for a finetune (the backbone is unchanged, so

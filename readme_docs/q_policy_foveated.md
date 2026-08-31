@@ -34,7 +34,7 @@ without copying:
 | flag | value |
 |---|---|
 | `--cfg.model-repo` | `/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648.pt` |
-| `--cfg.probe-repo` | `/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints/best.pt` |
+| `--cfg.probe-repo` | `/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints/best.pt` |
 
 Both are training checkpoints passed straight to the flags — no HF export, no conversion
 step. Both flags accept a training `.pt`, a local HF directory, or a Hub id.

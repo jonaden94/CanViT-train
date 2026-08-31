@@ -54,7 +54,7 @@ NGPU=1                       # ade20k is single-GPU only (supports_ddp=False)
 TASK=ade20k
 
 # === the two halves of the model ===
-_PROBE_RUN=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints
+_PROBE_RUN=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints
 CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648.pt
 CFG_PROBE_REPO=$_PROBE_RUN/best.pt   # the training checkpoint itself; no conversion
 

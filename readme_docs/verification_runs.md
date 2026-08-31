@@ -7,10 +7,10 @@ unit tests.
 
 | group | what it trains | runs | judged on | status |
 |---|---|---|---|---|
-| `exp32_pretrain_lrdrop` | `distill` pretraining from scratch, then an LR decay phase | 4 (+5 seeds) | `val/scene_cos_raw_t9` | **phase A complete** |
-| `exp33_in1k_finetune` | `in1k` full finetunes of four pretrained backbones | 4 | top-1 | **complete** |
-| `exp34_ade20k_probe` | `ade20k` frozen segmentation probes on the same four | 4 | CE and mIoU | **complete** |
-| `exp35_policy_qreg_10seed` | ADE20K viewpoint policy (Q-regression), 10 seeds | 10 | CE and mIoU | **complete** |
+| `jon_exp32_pretrain_lrdrop` | `distill` pretraining from scratch, then an LR decay phase | 4 (+5 seeds) | `val/scene_cos_raw_t9` | **phase A complete** |
+| `jon_exp33_in1k_finetune` | `in1k` full finetunes of four pretrained backbones | 4 | top-1 | **complete** |
+| `jon_exp34_ade20k_probe` | `ade20k` frozen segmentation probes on the same four | 4 | CE and mIoU | **complete** |
+| `jon_exp35_policy_qreg_10seed` | ADE20K viewpoint policy (Q-regression), 10 seeds | 10 | CE and mIoU | **complete** |
 
 Each group below has the same two sections: **Setup** (what is run and how) and **Results**.
 
@@ -230,7 +230,7 @@ answers the separate question "what does it score under the C2F deploy conventio
 `EpisodeConfig` default is 21 glimpses.
 
 ```bash
-bash scripts/eval_ade20k_c2f.sh exp34_ade20k_probe        # -> logs/<group>/_c2f_eval/*.json
+bash scripts/eval_ade20k_c2f.sh jon_exp34_ade20k_probe        # -> logs/<group>/_c2f_eval/*.json
 ```
 
 One GPU, ~10 min for all four (measured on a MIG `3g.40gb` A100 slice with 12 CPUs). The
@@ -334,11 +334,11 @@ without more seeds. One seed (s9) early-stopped at step 8000, on the ninth eval 
 
 ```bash
 # measure the baselines on a GPU, read the trained-Q seeds from the run logs, then draw
-python scripts/plot_policy_comparison.py --trained-dir logs/exp35_policy_qreg_10seed
+python scripts/plot_policy_comparison.py --trained-dir logs/jon_exp35_policy_qreg_10seed
 
 # baselines depend only on the frozen model + data + metric code, so a new policy group
 # can copy them instead of re-measuring (no GPU, seconds)
-python scripts/plot_policy_comparison.py --trained-dir logs/exp35_policy_qreg_10seed \
+python scripts/plot_policy_comparison.py --trained-dir logs/jon_exp35_policy_qreg_10seed \
     --reuse-baselines readme_docs/assets/_policy_comparison_data.json
 
 python scripts/plot_policy_comparison.py --from-cache    # re-style only, no measurement
@@ -385,8 +385,8 @@ just a path to the model they started from, so they load without their source re
 
 ```python
 from canvit_pytorch.model_source import load_classifier, load_segmentation
-clf = load_classifier("logs/exp33_in1k_finetune/<run>/checkpoints/best.pt")
-seg = load_segmentation("logs/exp34_ade20k_probe/<run>/checkpoints/best.pt")
+clf = load_classifier("logs/jon_exp33_in1k_finetune/<run>/checkpoints/best.pt")
+seg = load_segmentation("logs/jon_exp34_ade20k_probe/<run>/checkpoints/best.pt")
 ```
 
 An exp34 checkpoint also works directly as `--cfg.probe-repo` for a policy run, with no

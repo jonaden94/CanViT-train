@@ -28,7 +28,7 @@ exp33's checkpoints record the architecture, so a finetuned model loads straight
 
 ```python
 from canvit_pytorch.model_source import load_classifier
-clf = load_classifier("logs/exp33_in1k_finetune/<run>/checkpoints/best.pt")
+clf = load_classifier("logs/jon_exp33_in1k_finetune/<run>/checkpoints/best.pt")
 ```
 
 `to_hf` still works and is still the right thing for publishing.
