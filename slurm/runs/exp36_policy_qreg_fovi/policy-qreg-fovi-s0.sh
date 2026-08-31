@@ -48,7 +48,14 @@ RUN_GROUP=jon_exp36_policy_qreg_fovi
 SEED="${SEED:-0}"
 RUN_NAME=exp36-policy-qreg-fovi-s$SEED
 ARRAY=0-0%1                  # single job: 9000 steps fits inside the walltime
-TIME="${TIME:-0-02:00:00}"   # <=2h lands in the FAST 2h QOS (minutes vs ~24-31h). exp35's 10 seeds measured 01:14 each at canvas 64; this is canvas 32.
+# exp35's ten seeds measured 01:14 each at canvas 64; this runs at canvas 32, so 2h
+# leaves ~45min headroom. NOTE the ade20k task checkpoints only at the END, so a
+# timeout loses the run rather than resuming it.
+TIME="${TIME:-0-02:00:00}"
+# The fast `2h` QOS must be REQUESTED: a <=2h --time alone still lands in `normal`
+# (verified -- the first submission showed QOS=normal despite --time=2:00:00), and
+# `normal` has historically meant 24-31h of queueing. Set QOS= to fall back.
+QOS="${QOS:-2h}"
 MEM=64G
 NGPU=1                       # ade20k is single-GPU only (supports_ddp=False)
 TASK=ade20k
@@ -104,6 +111,7 @@ for v in $(compgen -v); do [[ "$v" == CFG_* || "$v" == OPT_* ]] && export "$v"; 
 
 sbatch \
     --gpus-per-node=A100:$NGPU --ntasks-per-node=$NGPU --mem=$MEM --time=$TIME \
+    ${QOS:+--qos=$QOS} \
     --array="$ARRAY" \
     --output="logs/$RUN_GROUP/$RUN_NAME/log/job-%A_%a.log" \
     --error="logs/$RUN_GROUP/$RUN_NAME/log/job-%A_%a.log" \
