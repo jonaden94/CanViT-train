@@ -1,6 +1,7 @@
 # 20 — Merging CanViT-eval into CanViT-train
 
-**Date:** 2026-08-31. **Nature:** plan, not a record. Nothing below has been executed.
+**Date:** 2026-08-31. **Nature:** plan + record. Stage 0 has been EXECUTED (see §5);
+Stages 1-6 have not.
 **Goal:** retire `CanViT-eval` entirely; one repo does all training and all evaluation.
 `CanViT-PyTorch` follows in a second phase (§8), after which the repo is renamed `canvit`.
 
@@ -11,8 +12,10 @@ them produced a published number. `in1k/rollout.py` imports `consumes_full_image
 `derive_glimpse_px` and `make_random_viewpoints` from `..ade20k.rollout` — a task reaching
 into another task's package, in violation of this repo's own layout rule, purely because
 there is no shared episode runner. And this repo *writes* `pretrain_view_scale` and
-`teacher_name` into every published checkpoint while reading neither; `canvit_eval` is the
-only consumer, which is how the exp22 eval-scale break happened. The merge fixes three real
+`teacher_name` into published distill checkpoints while reading neither — `canvit_eval` is
+the only consumer, which is how the exp22 eval-scale break happened — while for in1k it
+publishes an empty metadata block and a directory that cannot be loaded back at all
+(measured: §5 F6). The merge fixes three real
 defects that happen to share a root cause.
 
 ## 2. The structural insight the plan is built on
@@ -87,28 +90,271 @@ Each stage is independently shippable, independently gated, and leaves the repo 
 Do not collapse them: if a metric moves, the whole value of staging is knowing which stage
 moved it.
 
-### Stage 0 — Capture the baseline (no code changes)
+### Stage 0 — Capture the baseline — EXECUTED 2026-08-31
 
-Record every eval number the current code produces on these three checkpoints, both paths
-where both exist. Write it into this file as a table. **Everything after this is checked
-against it.** Checkpoints chosen 2026-08-31 (owner) — the arms this repo was most recently
-validated on, all foveated, which is the harder case:
+Everything in this section is measured, not planned. **Every later stage is gated against it.**
 
-| task | checkpoint |
-|---|---|
-| distill | `logs/jon_exp32_pretrain_lrdrop/exp32-fovi/checkpoints/latest.pt` (= `step-2007040.pt`) |
-| in1k | `logs/jon_exp33_in1k_finetune/in1k-fovi-ti-1196k/checkpoints/latest.pt` (= `step-401408.pt`) |
-| ade20k | `logs/jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints/best.pt` |
+**Where it ran.** Interactively, on a **MIG 3g.40gb slice** of an A100-80GB (driver 570.211;
+`CanViT-train/.venv-cu126` = torch 2.11.0+cu126, `CanViT-eval/.venv` = 2.11.0+cu128). The
+production runs compared against ran on a **full A100-SXM4-40GB** (`ggpu104`). That
+difference is load-bearing — see F1.
 
-The ade20k one is also exp36's reward model, so its `miou_t0` is independently known
-(0.377) — a free cross-check on the harness before any of this starts.
+**Instruments.** `scripts/eval_ade20k_checkpoint.py` (already in the repo) for ade20k; two
+throwaway drivers for in1k and distill, deliberately kept OUT of the repo since Stage 0
+changes no code. All three build the task, load the checkpoint with `strict=True`, build
+only the val loader, and call `task.evaluate` — the production eval path, nothing
+reimplemented. `git diff 716051a..HEAD -- '*.py'` touches only `scripts/` and
+`unification_docs/`, so `canvit_train/` at HEAD is identical to the commit these runs were
+pinned to and the logged numbers are a valid baseline for HEAD.
 
-Also run `canvit_eval` on the same checkpoints and record whether the two repos agree.
-Expectation: they do — `preds_from_logits` upsamples-then-argmaxes with a docstring
-cross-referencing `canvit_eval/tasks/ade20k_seg.py`, which does `F.interpolate` then
-`.argmax(dim=1)`, and both use core's `mIoUAccumulator`. If they disagree, **stop and
-diagnose before porting anything**: find where the difference comes from and decide which
-is correct. An unexplained disagreement here invalidates the gate for every later stage.
+#### Checkpoints — revised from the plan, with a reason
+
+The plan named the three *latest* checkpoints. Two are end-of-array-job writes at steps
+where no validation ever ran, so re-evaluating them yields a number with nothing to check it
+against. Substituting the nearest checkpoint whose step **has a logged eval** buys a free,
+independent validation of the instrument before anything is ported:
+
+| task | checkpoint | step | why this one |
+|---|---|---|---|
+| distill | `jon_exp32_pretrain_lrdrop/exp32-fovi/checkpoints/step-1916928.pt` | 1916928 | the next array job's step-0 eval logged this exact step |
+| in1k | `jon_exp33_in1k_finetune/in1k-fovi-ti-1196k/checkpoints/best.pt` | 400000 | the 10000-step eval cadence lands on it |
+| ade20k | `jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints/best.pt` | 30500 | single-job run, so `best.pt` is a real eval step |
+
+distill's `latest.pt` (step 2007040) is recorded too, without a logged counterpart. All
+three are foveated at `pretrain_view_scale = 2.0` — the harder case, as intended.
+
+#### F1 — The gate is EXACT on one machine, ~1e-5 across machines
+
+Repeating a deterministic eval on the same GPU is **bit-identical**: `fixation_grid` on
+ade20k reproduced all ten timesteps at `+0.00e+00`, in1k returned `0.83632 / 0.97006` twice,
+distill returned `0.925767719745636` twice. Comparing the same deterministic quantity to the
+*production log* does not:
+
+| quantity | production (full A100) | here (MIG slice) | Δ |
+|---|---|---|---|
+| ade20k `miou_t0` @ 30500 | 0.3768244010757639 | 0.3768156179363609 | −8.8e-6 |
+| distill `val_metric` @ 1916928 | 0.9257643967866898 | 0.9257677197456360 | +3.3e-6 |
+
+Same code, same weights, same data — different SM count, so different bf16 kernel and
+reduction choices. **Consequence for every later stage: gate by re-running before-and-after
+on the SAME machine and demanding exact equality. Never gate against a number in an old
+log** — that comparison has a ~1e-5 floor unrelated to the refactor.
+
+#### F2 — Only some eval policies can carry a gate
+
+`random`, `coarse_to_fine` and `fine_to_coarse` draw viewpoints from the global RNG and
+nothing seeds them. Two back-to-back ade20k runs of `random` on identical weights:
+
+| | t0 | t1 | t2 | t3 | t4 | t5 | t6 | t7 | t8 | t9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Δ(run1−run2) | **0.0e+00** | −1.3e-03 | −6.6e-05 | −2.6e-03 | +8.4e-04 | +6.0e-04 | +1.6e-03 | +9.0e-04 | −4.0e-04 | −2.0e-05 |
+
+t0 is exact because every policy opens on the deterministic full-scene anchor; t1..t9 carry a
+**±3e-3 band**. On in1k the same policy (the one exp33 actually used) has a ±5e-4 band on
+top1 over 50k images: `0.83702 / 0.96934` here vs `0.83658 / 0.96962` logged.
+
+**Deterministic, and therefore the gates:** `fixation_grid` (fixed internal seed) and `full`
+with an explicit scale pin. Both verified bit-identical on repeat, on all three tasks.
+
+#### The baseline
+
+Foveated arms, `fixed_scale = 2.0`, `resize_mode = squish`, `scene_size = 512`,
+`canvas_grid = 32`.
+
+**ade20k** — probe step 30500, T = 10, `eval_batch_size = 32`:
+
+| policy | t0 | t1 | t2 | t3 | t4 | t5 | t6 | t7 | t8 | t9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `fixation_grid` **(GATE)** | 0.3768156 | 0.4035657 | 0.4186816 | 0.4234078 | 0.4369073 | 0.4451849 | 0.4481932 | 0.4488288 | 0.4514489 | 0.4544373 |
+| `full` + pin 2.0 **(GATE)** | 0.3768156 | 0.3918174 | 0.3932582 | 0.3918565 | 0.3903892 | 0.3891984 | 0.3882820 | 0.3877608 | 0.3869647 | 0.3861163 |
+| `random` (what exp34 logged; ±3e-3) | 0.3768156 | 0.4012284 | 0.4137365 | 0.4232487 | 0.4313182 | 0.4347763 | 0.4380502 | 0.4412822 | 0.4432737 | 0.4455040 |
+| `full`, NO pin (see F5) | 0.2788730 | 0.2883050 | 0.2860560 | 0.2810370 | 0.2761970 | 0.2717320 | 0.2678090 | 0.2643220 | 0.2612410 | 0.2584140 |
+
+**in1k** — finetune step 400000, T = 4, `eval_batch_size = 64`, full 50k val:
+
+| policy | top1 | top5 |
+|---|---|---|
+| `fixation_grid` **(GATE)** | 0.83632 | 0.97006 |
+| `random` (what exp33 logged; ±5e-4) | 0.83702 | 0.96934 |
+| `full`, NO pin (see F5) | 0.72248 | 0.91346 |
+
+**distill** — `val_metric` = `val/scene_cos_raw_t9`, `fixation_grid` (what `auto` resolves to
+for foveated), 256-image seeded val subset, T = 10:
+
+| checkpoint | step | val_metric **(GATE)** |
+|---|---|---|
+| `step-1916928.pt` | 1916928 | 0.925767719745636 |
+| `latest.pt` | 2007040 | 0.925623193383217 |
+
+#### Cross-repo agreement: canvit_train ≡ canvit_eval, exactly
+
+The plan's condition was "if they disagree, **stop and diagnose before porting anything**".
+On the deterministic policy they do not disagree at all. ADE20K, probe step 30500,
+`canvit_train --eval-policy full --override-scale 2.0` against
+`canvit_eval ade20k-seg-canvit --episode.policy repeated_full_scene --episode.override-scale 2.0`:
+
+**all ten timesteps identical at `+0.00e+00`.** Not "within tolerance" — the same float.
+
+That is stronger than expected and it de-risks the port: the two episode runners, the two
+mIoU reductions and the two dataset/transform paths are already one implementation in
+practice (`mIoUAccumulator` and the ADE20K val dataset/transforms live in `canvit_pytorch`;
+both repos upsample-then-argmax). §2's claim that `run_episode` is the abstraction this repo
+is missing is now confirmed rather than asserted.
+
+**The in1k cross-repo check could not be run — blocked by F6.**
+
+#### F3 — `random` is a DIFFERENT POLICY in the two repos. Do not merge the name.
+
+Same checkpoint, `random` + pin 2.0. The two repos disagree by **0.0205 at t0**, then converge:
+
+| | t0 | t1 | t2 | t9 |
+|---|---|---|---|---|
+| canvit_train `random` | 0.376816 | 0.401228 | 0.413736 | 0.445504 |
+| canvit_eval `random` | 0.356355 | 0.398676 | 0.414968 | 0.445384 |
+
+Two independent causes, both real:
+
+1. **The t0 anchor.** canvit_train's `random` opens on the full-scene anchor
+   (`start_with_full_scene=True`); canvit_eval's opens on a random glimpse — its
+   `full_then_random` is the anchored one. The whole t0 gap is this.
+2. **Patcher-awareness.** canvit_train routes a foveated/square model through
+   `RandomSelector`, i.e. the scale/center law the backbone was *pretrained* under;
+   canvit_eval always uses core's uniform safe-box `random_viewpoints`. For a foveated
+   model **canvit_train's is the correct one** — same footgun as job 15025338, documented
+   at `ade20k/rollout.py::make_random_viewpoints`.
+
+So §5's "decide which is correct" is answered: canvit_train, for foveated. And the merged
+CLI must not let one `--policy random` mean two things — name them apart, or make the
+anchor an explicit flag.
+
+#### F4 — `eval_override_scale` exists on ade20k ONLY
+
+`open_loop_viewpoints(..., override_scale=...)` supports the pin for every task, but only
+`Ade20kConfig` exposes a field for it (`config.py:125`). `In1kConfig` and distill's `Config`
+have none, so neither can pin the eval view-scale from config — and in1k is precisely the
+task whose `HISTORICAL_DEFAULTS` entry is the *documented* OOD footgun (foveated → unpinned
+`coarse_to_fine`). Stage 3 must unify this knob across the three tasks while leaving each
+task's default alone — the pattern already blessed in `unify-the-knob-not-the-defaults`.
+
+#### F5 — `HISTORICAL_DEFAULTS`' own advice is wrong for foveated, and it is expensive
+
+Its note reads: *"Pass `--cfg.eval-policy fixation_grid` (or `full`) for a scale-pinned
+foveated deploy."* `full` is **not** scale-pinned: it is `repeated_full_scene`, emitting
+`Viewpoint.full_scene` at **scale 1.0**, whereas a `mode='fixed'` foveated model's own FULL
+anchor sits at `fixed_scale` (2.0 here — proven by `random`'s t0 matching `fixation_grid`'s
+t0 exactly). Measured cost of following the docstring:
+
+* ade20k: −0.098 mIoU at t0, widening to **−0.128 at t9**, with the curve *decaying* as
+  glimpses accumulate — the textbook OOD signature.
+* in1k: top1 **0.72248 vs 0.83632**, i.e. −0.114.
+
+`full` is in-distribution only with an explicit `--cfg.eval-override-scale`, which per F4
+in1k cannot even express. Fix the docstring; the knob is the actual remedy.
+
+#### F6 — `to_hf`'s in1k output cannot be loaded back. Root cause is in core.
+
+Two defects, one blocking:
+
+**(a) The published classifier is unloadable.** `python -m canvit_train.checkpoint.to_hf`
+on an in1k checkpoint writes a directory whose `from_pretrained` raises:
+
+```
+TypeError: CanViTForImageClassification.__init__() missing 1 required keyword-only argument: 'model_config'
+config.json = {"backbone_name": "vitb16", "glimpse_grid_size": 8, "n_classes": 1000}
+```
+
+Reproduced in BOTH venvs (huggingface_hub 1.11.0 and 1.7.1), so it is not a version skew.
+Root cause is in **CanViT-PyTorch**, not in `to_hf`: `from_pretrained_with_new_head` passes
+`model_config={k: v for k, v in vars(cfg).items() ...}` — nested *dataclass instances*, not
+plain dicts — so `PyTorchModelHubMixin` cannot JSON-encode it and **silently drops the key**.
+Verified directly: a freshly built classifier has
+`_hub_mixin_config = ['backbone_name', 'glimpse_grid_size', 'n_classes']`. Three sites pass
+`vars(cfg)` this way — `classification/__init__.py:198` and `:273`, `segmentation/__init__.py:154`
+— so every `save_pretrained` of a model built by those constructors is affected. The two
+sites that pass `mc["canvit"]` (an already-flattened dict) are fine, which is why the
+hand-assembled pretraining layout works.
+
+The in1k HF export was added *because* "an in1k finetune could not be handed to
+CanViT-eval". **It still cannot** — it has never worked end to end. `test_to_hf.py` covers
+only `is_classifier_checkpoint` dispatch and never round-trips the artifact, so the test
+pins the belief rather than the format: the `fixture-drift-hid-real-bug` pattern again.
+
+**(b) The classifier layout carries no metadata at all.** `classifier_to_hf` delegates to
+`save_pretrained`, which writes the model config and nothing else:
+
+```
+exp33_in1k_400000_hf/config.json  -> metadata keys: []   pretrain_view_scale: null   teacher_name: None
+exp32_fovi_1916928_hf/config.json -> metadata keys: [dataset, git_commit, pretrain_view_scale, source_pt, step, teacher_name, timestamp]
+```
+
+So both of canvit_eval's footgun-closers are inert on any classifier: `resolve_view_scale`
+finds no `pretrain_view_scale` and would silently evaluate a foveated finetune at the
+policy's scales (F5 shows that costs 0.11 top1); `teacher_probe_for_model` finds no
+`teacher_name` and falls back to ViT-B — correct here only by luck. §1's "this repo writes
+both fields while reading neither" was too generous: for in1k it does not write them either.
+
+**Consequence: (a) is a prerequisite, not a stage.** Fix it in core before Stage 2, with a
+round-trip test (`build → save_pretrained → from_pretrained → same logits`) rather than a
+dispatch assertion. Stage 2 then has a **writer half** as well as the reader port.
+
+#### F7 — `pretrain_view_scale` has two schemas
+
+Local `.pt` metadata records a bare **float** (`2.0`; `distill/task.py:630`,
+`ade20k/task.py:484`). The HF `config.json` records the **dict** canvit_eval parses
+(`{patcher_name, mode, distribution, fixed_scale, min_scale, max_scale}`), reconstructed by
+`extract_pretrain_view_scale` from `training_config_history`.
+`resolve_scale_from_metadata` returns "not recorded" for anything that is not a dict, so a
+resolver ported as-is is a silent no-op on every local checkpoint. Accept both forms, and
+build the fixtures from the real producer of each.
+
+#### F8 — distill's `validate` returns one scalar and logs the rest
+
+`validate()` returns `scene_cos_raw[-1]` and pushes the whole per-timestep
+`scene_cos_raw/norm`, `cls_cos_raw/norm` and `in1k_tts_top1` series straight into the
+tracker. With `tracker="none"` a standalone eval can capture **only** `val_metric` — which
+is why distill's row above has one number and not ten. Stage 3's `harness.evaluate` must
+have `evaluate` **return** the series and leave logging to the caller, or the Stage-1b gate
+for distill is a single scalar.
+
+#### F9 — Stage 4's reconstruction gate, as written, cannot be met
+
+It says "reconstruction matches distill's `val/scene_cos_raw_t9` on the same checkpoint".
+The two compute the same quantity over **different images**: distill validates on a fixed
+256-image subset drawn by a seeded permutation of ImageNet-1k val (`val_seed=0`,
+`n_val_samples=256`), while `canvit_eval/tasks/reconstruction.py`'s `ImageDirDataset` rglobs
+a directory and sorts by filename. Restate the gate: the ported reconstruction, **pointed at
+distill's own fixed-subset loader**, matches the distill series. Sharing that loader is the
+point of the merge anyway.
+
+#### F10 — Two incidental findings, out of scope, recorded so they are not lost
+
+* **`best.pt` in a multi-job array run is not the global best.** `harness/loop.py`'s
+  `best_so_far` is a local initialised to `None` per job, so each array task's first
+  validation always rewrites `best.pt`. Demonstrated on exp33: top1 peaked at step 380000
+  (0.83714, array task 42) but `best.pt` holds step 400000 (0.83658, task 44). Single-job
+  runs (exp30/exp34 ade20k) are unaffected; the in1k arrays (exp25/exp29/exp33) are not.
+* **`scripts/eval_ade20k_checkpoint.py` is a Stage-3 precursor for one task.** It already
+  does for ade20k what `harness.evaluate` will do for all three, and its header already
+  carries the C2F/foveated-scale warning Stage 3 needs. Stage 3 subsumes and deletes it; that
+  header is the best available draft of the new CLI's help text.
+
+### Stage 0b — PREREQUISITE: make the in1k HF layout loadable (core)
+
+Surfaced by Stage 0, F6(a): `save_pretrained` on any classifier or segmentation model built
+by `from_pretrained_with_new_head` / `from_pretrained_with_probe` drops `model_config`, so
+`from_pretrained` on the result raises. Three sites in **CanViT-PyTorch** pass
+`vars(cfg)` (nested dataclass instances) where a flattened dict is required:
+`classification/__init__.py:198`, `:273`, `segmentation/__init__.py:154`.
+
+This is a core fix, so strictly it belongs to Phase 2 (§8) — but it blocks the in1k half of
+this merge (canvit_eval cannot load an in1k finetune at all, so there is no cross-repo
+number to gate against), so it goes first.
+
+**Gate:** a round trip — `from_pretrained_with_new_head` → `save_pretrained` →
+`from_pretrained` → **identical logits on a fixed batch** — for the classifier AND the
+segmentation wrapper. Not a dispatch assertion: `test_to_hf.py` already asserts the
+dispatch and the artifact was broken anyway (F6). Then re-run the in1k cross-repo
+comparison Stage 0 could not run, and add its numbers to the F6 note.
 
 ### Stage 1 — Lift the shared episode runner
 
@@ -128,19 +374,29 @@ Moving `validate.py` out of `viz/` — a validation rollout nested under a *visu
 subpackage — is a structural fix worth doing, but it is cosmetic and must not ride along
 with a numeric change. Do it in its own commit, before or after, never during.
 
-**Gate (1 and 1b):** every Stage-0 number reproduces exactly. This is pure code motion;
-anything that moves is a bug introduced here.
+**Gate (1 and 1b):** the Stage-0 rows marked **(GATE)** reproduce **bit-identically** —
+ade20k `fixation_grid` and `full`+pin 2.0 (ten timesteps each), in1k `fixation_grid`
+(top1/top5), distill `val_metric`. Per F1 this must be a fresh before-and-after on ONE
+machine; per F2 the `random` rows cannot gate anything past t0. This is pure code motion, so
+anything that moves at all is a bug introduced here.
 
 ### Stage 2 — Close the two footguns
 
 Port `resolve_view_scale` (auto-derive the eval view-scale from the checkpoint's recorded
 `pretrain_view_scale`) and `teacher_probe_for_model` (auto-select teacher + in1k probe from
-`teacher_name`, with a registry and a loud fallback). Both read metadata this repo already
-writes in `checkpoint/to_hf.py`.
+`teacher_name`, with a registry and a loud fallback).
 
-**Gate:** a run passing the scale explicitly is unchanged; a run passing nothing now
-resolves to the same value and logs the decision. Pre-metadata checkpoints stay unchanged
-(the resolver is a no-op without the field).
+**This stage has a WRITER half, added after Stage 0.** The premise "both read metadata this
+repo already writes" is false for in1k: `classifier_to_hf` publishes an empty `metadata`
+block, so both closers are inert on every classifier (F6(b)). And the reader must accept
+BOTH recorded schemas — the local `.pt` float and the HF dict (F7).
+
+**Gate:** (a) a run passing the scale explicitly is unchanged; (b) a run passing nothing
+resolves to the same value and logs the decision; (c) pre-metadata checkpoints stay
+unchanged (no-op without the field); (d) an in1k checkpoint round-tripped through `to_hf`
+now carries `pretrain_view_scale` + `teacher_name`, and the resolver fires on it — checked
+against the F5 numbers, which are what "inert" costs: 0.114 top1 on in1k, 0.128 mIoU on
+ade20k.
 
 ### Stage 3 — `harness.evaluate`
 
@@ -159,8 +415,25 @@ Training-time validation and standalone eval share the episode runner and differ
 config: subset vs full val set, glimpse count, DDP vs single-GPU. Nothing stops X glimpses
 in training and Y standalone.
 
+Three requirements Stage 0 added:
+
+* **`--eval-override-scale` on all three tasks** (F4) — today only ade20k has it, and in1k,
+  the one task whose historical default is the OOD footgun, cannot express the remedy.
+  Unify the knob, keep each task's default (`unify-the-knob-not-the-defaults`).
+* **Do not merge the name `random`** (F3) — it means "anchored + patcher-aware" here and
+  "unanchored + uniform-safe-box" in canvit_eval, a 0.0205 difference at t0. Either keep two
+  names or make the t0 anchor an explicit flag; a silent merge picks one repo's published
+  numbers over the other's.
+* **`evaluate` must RETURN the per-timestep series, not log it** (F8) — distill currently
+  returns one scalar and pushes ten series into the tracker, which is why Stage 0's distill
+  baseline is a single number.
+
+Also fix the `HISTORICAL_DEFAULTS` docstring here (F5): its "(or `full`)" advice is
+in-distribution only with an explicit pin.
+
 **Gate:** standalone reproduces training-time validation exactly when handed the same
-checkpoint, policy, glimpse count and val subset.
+checkpoint, policy, glimpse count and val subset — on ONE machine (F1), under a
+deterministic policy (F2).
 
 ### Stage 4 — The eval-only capabilities
 
@@ -169,8 +442,10 @@ already computes cosine-to-teacher; two implementations would recreate the dupli
 merge exists to remove — treat this as the canary for whether the refactor is working).
 Then `ade20k-seg-dinov3`, then the per-row IoU output.
 
-**Gate:** reconstruction matches distill's `val/scene_cos_raw_t9` on the same checkpoint;
-the DINOv3 baseline matches canvit_eval's number; per-row IoU aggregates to the same
+**Gate:** reconstruction, **pointed at distill's own fixed-subset val loader**, matches
+distill's `val/scene_cos_raw_t9` on the same checkpoint (0.925767719745636 at step 1916928).
+The unqualified version of this gate is unmeetable — the two paths cover different images
+(F9). The DINOv3 baseline matches canvit_eval's number; per-row IoU aggregates to the same
 dataset mIoU the existing path reports.
 
 ### Stage 5 — Tests and bench
@@ -190,6 +465,11 @@ staleness pattern as the old `CanViT-pretrain` paths. Then mark `CanViT-eval` re
 `CLAUDE.md` alongside `CanViT-specialize` and `CanViT-PyTorch-RL`, and update memory.
 
 ## 6. Risks
+
+**A gate is only a gate on one machine.** Stage 0 measured a ~1e-5 spread on a fully
+deterministic quantity between a full A100 and a MIG slice of one (F1). Every stage's gate
+therefore means "re-run before and after, here, and demand exact equality" — never "compare
+to the number in the log".
 
 **The regression surface is metric values, not exceptions.** Precedent: `68b635f` fixed an
 argmax/upsample ordering and re-based **every** earlier ADE20K mIoU by ~0.19. Nothing
