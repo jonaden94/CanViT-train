@@ -201,7 +201,8 @@ practice (`mIoUAccumulator` and the ADE20K val dataset/transforms live in `canvi
 both repos upsample-then-argmax). §2's claim that `run_episode` is the abstraction this repo
 is missing is now confirmed rather than asserted.
 
-**The in1k cross-repo check could not be run — blocked by F6.**
+**The in1k cross-repo check could not be run at the time — blocked by F6.** It was
+unblocked by Stage 0b and then agreed exactly; the numbers are in that stage.
 
 #### F3 — `random` is a DIFFERENT POLICY in the two repos. Do not merge the name.
 
@@ -338,7 +339,7 @@ point of the merge anyway.
   carries the C2F/foveated-scale warning Stage 3 needs. Stage 3 subsumes and deletes it; that
   header is the best available draft of the new CLI's help text.
 
-### Stage 0b — PREREQUISITE: make the in1k HF layout loadable (core)
+### Stage 0b — PREREQUISITE: make the in1k HF layout loadable (core) — EXECUTED 2026-08-31
 
 Surfaced by Stage 0, F6(a): `save_pretrained` on any classifier or segmentation model built
 by `from_pretrained_with_new_head` / `from_pretrained_with_probe` drops `model_config`, so
@@ -350,11 +351,28 @@ This is a core fix, so strictly it belongs to Phase 2 (§8) — but it blocks th
 this merge (canvit_eval cannot load an in1k finetune at all, so there is no cross-repo
 number to gate against), so it goes first.
 
-**Gate:** a round trip — `from_pretrained_with_new_head` → `save_pretrained` →
-`from_pretrained` → **identical logits on a fixed batch** — for the classifier AND the
-segmentation wrapper. Not a dispatch assertion: `test_to_hf.py` already asserts the
-dispatch and the artifact was broken anyway (F6). Then re-run the in1k cross-repo
-comparison Stage 0 could not run, and add its numbers to the F6 note.
+**Done in `CanViT-PyTorch@2679d6b`.** The scope turned out to be wider than F6 read:
+the **segmentation** wrapper is affected too, and for uniform models as well as foveated —
+i.e. *every* probe or classifier this stack has ever published was unloadable, not just the
+in1k branch. `serialize_canvit_config` was added as the explicit inverse of
+`rebuild_canvit_config` and the three sites route through it. No runtime behaviour change:
+the wrapper ends up with the config `from_pretrained` has always built from a plain dict.
+
+**Gate — passed, all on one machine (F1):**
+
+* 4 new round-trip tests in `tests/test_checkpoint_sources.py` (build → `save_pretrained` →
+  `from_pretrained` → same cfg, same tensors, **identical logits**), for the classifier and
+  the segmentation wrapper, uniform and foveated. All four fail before the fix.
+* `canvit_pytorch` 125 passed (121 + the 4 new); `canvit_train` 313 passed.
+* Both Stage-0 rows that run through the changed constructors reproduce **bit-identically**:
+  ade20k `fixation_grid` (all ten timesteps) and in1k `fixation_grid` (0.83632 / 0.97006).
+* **The check Stage 0 could not run now runs and agrees exactly.** in1k under
+  `repeated_full_scene`, unpinned, on the same finetune: top1 **0.72248** / top5 **0.91346**
+  in *both* repos — 36124/50000 either way. So the cross-repo agreement established for
+  ade20k holds for in1k too, and §2's shared-runner premise is confirmed on both tasks.
+
+F6(b) — the classifier layout carrying no `metadata` block — is **not** fixed here and stays
+Stage 2's writer half.
 
 ### Stage 1 — Lift the shared episode runner
 
