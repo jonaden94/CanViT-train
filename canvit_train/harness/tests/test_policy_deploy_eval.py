@@ -124,7 +124,7 @@ def test_distill_deploy_viewpoints_runs_closed_loop():
 
     from canvit_train import CanViTForPretraining, CanViTForPretrainingConfig
     from canvit_train.distill.task import POLICY_FEATURE_GROUPS as DISTILL_GROUPS
-    from canvit_train.distill.viz.validate import _deploy_viewpoints
+    from canvit_train.distill.validate import _deploy_viewpoints
 
     torch.manual_seed(0)
     model = CanViTForPretraining(

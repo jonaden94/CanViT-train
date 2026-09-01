@@ -40,6 +40,7 @@ from canvit_train.distill.probe import (
     labels_are_in1k,
     load_probe,
 )
+from canvit_train.distill.validate import validate
 from canvit_train.distill.viz import (
     TimestepPredictions,
     imagenet_denormalize_to_numpy,
@@ -47,7 +48,6 @@ from canvit_train.distill.viz import (
     plot_pca_grid,
     plot_trajectory,
     timestep_colors,
-    validate,
 )
 
 __all__ = [

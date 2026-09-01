@@ -543,9 +543,8 @@ class DistillRunTask:
 
         from canvit_pytorch.backbone.vit import NormFeatures
 
-        from canvit_train.distill.data import scene_size_px
         from canvit_train.distill.probe import load_probe
-        from canvit_train.distill.viz import validate
+        from canvit_train.distill.validate import validate
         from canvit_train.harness.infra.tracker import make_tracker
         try:
             teacher = self._teacher_for_forward(device)  # validation targets: compiled

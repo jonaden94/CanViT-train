@@ -13,7 +13,6 @@ from .plot import (
     timestep_colors,
 )
 from .sample import VizSampleData, extract_sample0_viz
-from .validate import ValAccumulator, validate
 
 __all__ = [
     # disk
@@ -36,7 +35,4 @@ __all__ = [
     # sample
     "VizSampleData",
     "extract_sample0_viz",
-    # validate
-    "ValAccumulator",
-    "validate",
 ]

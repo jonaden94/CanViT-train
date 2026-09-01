@@ -1,4 +1,13 @@
-"""Validation with streaming metrics and optional PCA visualization."""
+"""The distill validation PHASE: streaming per-timestep metrics, the IN1k probe readout,
+and the optional PCA/curve figures.
+
+Lived under ``viz/`` until 2026-09-01, which read as though validation were a rendering
+concern. Rendering is the part it delegates (to ``.viz``); the metrics are the point.
+
+The glimpse loop is NOT here and never was: :meth:`CanViT.forward_reduce` owns it, in core.
+See eval-merge doc §5 (Stage 1b) for why that is a different shape from
+``harness/rollout/episode.py::run_episode`` and why the two are left separate.
+"""
 
 import logging
 from collections.abc import Callable, Iterable
@@ -19,19 +28,19 @@ from torch import Tensor
 from canvit_train import CanViTForPretraining
 from canvit_train.harness.infra.utils import assert_shape
 
-from ...harness.infra.tracker import Tracker
-from ...harness.rollout.eval_viewpoints import open_loop_viewpoints, resolve
-from ...harness.viz.disk import plot_combined_curves, save_figure
-from ..probe import (
+from ..harness.infra.tracker import Tracker
+from ..harness.rollout.eval_viewpoints import open_loop_viewpoints, resolve
+from ..harness.viz.disk import plot_combined_curves, save_figure
+from .probe import (
     compute_in1k_top1,
     get_imagenet_class_names,
     get_probe_resolution,
     get_top_k_predictions,
     labels_are_in1k,
 )
-from .image import imagenet_denormalize_to_numpy
-from .plot import TimestepPredictions, plot_multistep_pca
-from .sample import VizSampleData, extract_sample0_viz
+from .viz.image import imagenet_denormalize_to_numpy
+from .viz.plot import TimestepPredictions, plot_multistep_pca
+from .viz.sample import VizSampleData, extract_sample0_viz
 
 log = logging.getLogger(__name__)
 
