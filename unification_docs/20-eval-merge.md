@@ -383,10 +383,41 @@ read). Rewire ade20k and in1k onto it. Delete the `in1k → ade20k` cross-import
 **distill is deliberately NOT rewired here.** `distill/viz/validate.py::validate` is not a
 rollout — it is a whole validation *phase*: teacher targets, the per-timestep cos/recon
 series, the IN1k linear-probe readout, curve plots and the PCA figure, each on its own
-historical cadence. Only the glimpse loop inside it is shareable. Extracting that is a
-second, separately-gated step (**Stage 1b**) precisely because the surrounding phase is
-where distill's task-specific correctness lives. Treating all three tasks as one move is
-the premature-unification trap in §6.
+historical cadence. Treating all three tasks as one move is the premature-unification trap
+in §6.
+
+**Stage 1b is CANCELLED — its premise was wrong (checked 2026-09-01).** §2's table claimed
+distill owns a third eval rollout. It does not: `validate()` delegates to
+`CanViT.forward_reduce` (`canvit_pytorch/model/base/impl.py:422`), a fold over viewpoints
+that already lives in **core**. There is no distill-side loop to extract.
+
+What the stack actually has is two loops, split along a line the plan did not see:
+
+| | `CanViT.forward_reduce` (core) | `harness/rollout/episode.py::run_episode` |
+|---|---|---|
+| shape | fold (`init_fn`/`step_fn`) | list of readouts |
+| image per glimpse | the SAME full image every time | a per-viewpoint **crop** |
+| modulation | hoisted out of the loop | recomputed per glimpse |
+| used by | distill | ade20k, in1k |
+
+The image row is the whole reason both exist, and it is a **patcher convention**, not a task
+difference. `UniformPatcher` built with `glimpse_size_px=<N>` crops internally
+(`patcher/uniform.py:50`), which is how the pretraining model is built — so distill hands it
+the full scene. The downstream wrappers are built with `glimpse_size_px=None`, so the patcher
+expects an already-cropped glimpse and the CALLER must crop. `consumes_full_image` /
+`derive_glimpse_px` / `sample_at_viewpoint` in `run_episode` exist purely to compensate for
+that. `forward_reduce` passes one fixed `image`, so it cannot express the caller-crop case.
+
+The real unification is therefore to give the downstream wrappers a `glimpse_size_px`-aware
+patcher so they crop internally like distill, after which `run_episode` collapses into
+`forward_reduce`. That is core surgery changing what every downstream wrapper does, and
+**its measurable payoff today is zero**: the only behavioural difference is the modulation
+hoist, and `vit_modulation.enabled` is `false` in every checkpoint in flight (checked on
+exp22's `config.json`), so `token_modulation` is `None` and the hoist is a no-op. Not worth
+the risk now. Revisit if modulation is ever enabled — at which point ade20k/in1k eval starts
+recomputing it once per glimpse, identical in value and wasteful in time.
+
+Recorded rather than acted on, per §6's premature-unification warning.
 
 Moving `validate.py` out of `viz/` — a validation rollout nested under a *visualization*
 subpackage — is a structural fix worth doing, but it is cosmetic and must not ride along
@@ -414,9 +445,9 @@ reproduce **bit-identically**: ade20k `fixation_grid` and `full`+pin 2.0 (ten ti
 each), in1k `fixation_grid` and in1k `full` unpinned. Fresh before/after on the same MIG
 slice, per F1. Artifacts: `stage0_baseline/gate1_*.json`.
 
-**Gate (1 and 1b):** the Stage-0 rows marked **(GATE)** reproduce **bit-identically** —
+**Gate (Stage 1):** the Stage-0 rows marked **(GATE)** reproduce **bit-identically** —
 ade20k `fixation_grid` and `full`+pin 2.0 (ten timesteps each), in1k `fixation_grid`
-(top1/top5), distill `val_metric`. Per F1 this must be a fresh before-and-after on ONE
+(top1/top5) and in1k `full` unpinned. Per F1 this must be a fresh before-and-after on ONE
 machine; per F2 the `random` rows cannot gate anything past t0. This is pure code motion, so
 anything that moves at all is a bug introduced here.
 
