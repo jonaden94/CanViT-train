@@ -105,6 +105,58 @@ def resolve(policy: str, *, task: str, is_foveated: bool) -> str:
     return policy
 
 
+def make_random_viewpoints(
+    batch_size: int, device: torch.device, n: int, *,
+    min_scale: float, max_scale: float, start_with_full_scene: bool,
+    is_foveated: bool = False,
+    foveated_scale: FoveatedScaleConfig | None = None,
+) -> list[Viewpoint]:
+    """The probe rollout's viewpoint distribution, PATCHER-AWARE (eval-merge doc §2).
+
+    Uniform patcher: specialize's law (core ``random_viewpoints`` — the same
+    L²-safe-box law as pretrain's ``Viewpoint.random``).
+
+    Foveated/square: delegated to :class:`RandomSelector`, the canonical random
+    policy extracted from the pretraining loop in P1, so the probe sees exactly
+    the scale/center law the backbone was trained under. This is not cosmetic:
+    the foveated patcher derives its fixation window from the viewpoint scale
+    (``fix_size = scale * H``), so feeding it the uniform safe-box law (scales
+    ≤ 1) after it was pretrained at, say, ``fixed_scale=2.0`` puts every glimpse
+    out of distribution — measured as mIoU *decreasing* monotonically with more
+    glimpses (job 15025338; see p2-notes "foveated scale mismatch").
+
+    Imports are function-local for the reason stated at the top of this module: the task
+    configs import ``EvalPolicy`` from here, so a module-level ``harness.config`` import
+    would close a cycle.
+    """
+    from canvit_pytorch.policies import random_viewpoints
+
+    from canvit_train.harness.config import FoveatedScaleConfig
+    from canvit_train.harness.rollout.selector import RandomSelector
+    from canvit_train.harness.rollout.viewpoint import ViewpointType
+
+    if not is_foveated:
+        return random_viewpoints(
+            batch_size, device, n,
+            min_scale=min_scale, max_scale=max_scale,
+            start_with_full_scene=start_with_full_scene,
+        )
+    sel = RandomSelector(
+        is_foveated=True,
+        foveated_scale=foveated_scale or FoveatedScaleConfig(),
+        min_viewpoint_scale=min_scale,
+    )
+    t0 = ViewpointType.FULL if start_with_full_scene else ViewpointType.RANDOM
+    ctx = sel.start_rollout(t0_type=t0, batch_size=batch_size, device=device)
+    types = [t0] + [ViewpointType.RANDOM] * (n - 1)
+    return [
+        sel.select(
+            vp_type=vt, ctx=ctx, t=t, batch_size=batch_size, device=device, state=None  # type: ignore[arg-type]
+        )
+        for t, vt in enumerate(types)
+    ]
+
+
 def open_loop_viewpoints(
     policy: str,
     *,
@@ -138,7 +190,6 @@ def open_loop_viewpoints(
     """
     from canvit_pytorch.policies import repeated_full_scene
 
-    from canvit_train.ade20k.rollout import make_random_viewpoints
     from canvit_train.harness.rollout.viewpoint import make_eval_viewpoints, make_eval_viewpoints_foveated
 
     def _pin(vps: list[Viewpoint]) -> list[Viewpoint]:

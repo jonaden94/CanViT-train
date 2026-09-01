@@ -1,7 +1,9 @@
 """The glimpse rollout: how a batch becomes a sequence of viewpoints and losses.
 
-- ``engine.py``          — ``run_rollout``, the task-agnostic rollout loop (BPTT modes,
-                           branch handling, per-glimpse loss accumulation)
+- ``engine.py``          — ``run_rollout``, the task-agnostic TRAINING rollout loop (BPTT
+                           modes, branch handling, per-glimpse loss accumulation)
+- ``episode.py``         — ``run_episode``, the task-agnostic EVAL glimpse loop, plus the
+                           uniform-vs-foveated routing every task shares
 - ``viewpoint.py``       — viewpoint types, pixel-box geometry, eval viewpoint grids
 - ``selector.py``        — which viewpoint comes next (random / policy / mixture)
 - ``eval_viewpoints.py`` — viewpoint schedules used at validation and deploy time

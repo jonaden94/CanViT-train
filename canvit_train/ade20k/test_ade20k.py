@@ -10,9 +10,11 @@ import torch
 from canvit_pytorch import CanViTForSemanticSegmentation
 from canvit_pytorch.patcher import FoveatedPatcherConfig
 
+from ..harness.rollout.episode import consumes_full_image
+from ..harness.rollout.eval_viewpoints import make_random_viewpoints
 from .data import IGNORE_LABEL, NUM_CLASSES
 from .metrics import ce_loss
-from .rollout import consumes_full_image, make_random_viewpoints, rollout_canvas_hidden
+from .rollout import rollout_canvas_hidden
 
 _B, _G, _T, _IMG = 2, 8, 2, 224
 _DEVICE = torch.device("cpu")
@@ -80,7 +82,7 @@ def test_square_patcher_also_routes_the_full_image() -> None:
 
 def test_glimpse_px_token_guard() -> None:
     """A glimpse_px that yields the wrong token count must fail loudly."""
-    from .rollout import derive_glimpse_px
+    from ..harness.rollout.episode import derive_glimpse_px
 
     seg = _tiny_seg({})
     seg.canvit.glimpse_grid_size = 8  # 8 tokens/side @ patch 16 -> 128 px

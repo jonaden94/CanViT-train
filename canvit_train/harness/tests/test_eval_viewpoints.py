@@ -76,7 +76,7 @@ def test_distill_foveated_is_bit_identical_to_the_old_generator():
 
 
 def test_ade20k_random_is_bit_identical_to_the_old_generator():
-    from canvit_train.ade20k.rollout import make_random_viewpoints
+    from canvit_train.harness.rollout.eval_viewpoints import make_random_viewpoints
 
     torch.manual_seed(0)
     old = make_random_viewpoints(_B, _DEV, _N, min_scale=0.05, max_scale=1.0,

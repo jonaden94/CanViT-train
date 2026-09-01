@@ -10,9 +10,11 @@ import torch
 from canvit_pytorch import CanViTForImageClassification
 from canvit_pytorch.patcher import FoveatedPatcherConfig
 
+from ..harness.rollout.episode import consumes_full_image
+from ..harness.rollout.eval_viewpoints import make_random_viewpoints
 from .config import FoveatedScaleConfig
 from .metrics import TopKAccuracy, ce_loss, topk_correct
-from .rollout import consumes_full_image, eval_viewpoints, make_random_viewpoints, rollout_cls_tokens
+from .rollout import eval_viewpoints, rollout_cls_tokens
 
 _IN1K_SHARDS = Path("/mnt/vast-nhr/projects/nib00021/jonathan/datasets") \
     / "webdataset-imagenet-1k-no-features/train-shuffled"

@@ -374,7 +374,7 @@ the wrapper ends up with the config `from_pretrained` has always built from a pl
 F6(b) — the classifier layout carrying no `metadata` block — is **not** fixed here and stays
 Stage 2's writer half.
 
-### Stage 1 — Lift the shared episode runner
+### Stage 1 — Lift the shared episode runner — EXECUTED 2026-09-01
 
 Move `consumes_full_image`, `derive_glimpse_px` and the glimpse loop into
 `harness/rollout/`; give it `run_episode`'s shape (return per-step outputs, let callers
@@ -391,6 +391,28 @@ the premature-unification trap in §6.
 Moving `validate.py` out of `viz/` — a validation rollout nested under a *visualization*
 subpackage — is a structural fix worth doing, but it is cosmetic and must not ride along
 with a numeric change. Do it in its own commit, before or after, never during.
+
+**Stage 1 done.** `harness/rollout/episode.py` holds `consumes_full_image`,
+`derive_glimpse_px` and `run_episode`; `ade20k/rollout.py` and `in1k/rollout.py` are now
+just their readouts (39 and 69 lines, from 126 and 81). `make_random_viewpoints` moved to
+`harness/rollout/eval_viewpoints.py`, which had been reaching into the ade20k package for
+it — a second cross-import the plan had not spotted. Both `in1k → ade20k` imports are gone
+(`in1k/rollout.py` AND `in1k/task.py`; the plan named one).
+
+`run_episode` takes a `readout` callback rather than returning per-step `CanViTOutput`s the
+way `canvit_eval/episode.py` does: both callers keep only a small projection of each step,
+and ten full foveated ADE20K states are gigabytes. Same loop, same sharing, memory
+unchanged. Closed-loop rollouts (`_policy_rollout`, `_entropy_c2f_rollout`,
+`_policy_rollout_cls`) are NOT folded in — their viewpoints depend on the live state, so
+they cannot take a precomputed list; they already share `deploy_rollout_viewpoints`'
+`advance` callback. `in1k/rollout.py::eval_viewpoints` is a third, now-unused policy
+dispatcher reached only by its own test; left alone because the policy surface is Stage 3's
+subject, not this stage's.
+
+**Gate — PASSED.** 313 tests (unchanged count), and all four Stage-0 **(GATE)** rows
+reproduce **bit-identically**: ade20k `fixation_grid` and `full`+pin 2.0 (ten timesteps
+each), in1k `fixation_grid` and in1k `full` unpinned. Fresh before/after on the same MIG
+slice, per F1. Artifacts: `stage0_baseline/gate1_*.json`.
 
 **Gate (1 and 1b):** the Stage-0 rows marked **(GATE)** reproduce **bit-identically** —
 ade20k `fixation_grid` and `full`+pin 2.0 (ten timesteps each), in1k `fixation_grid`

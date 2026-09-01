@@ -11,9 +11,10 @@ import torch
 import torch.distributed as tdist
 
 from ..harness.infra import dist as ddp
+from ..harness.rollout.episode import consumes_full_image
 from .config import In1kConfig
 from .metrics import TopKAccuracy
-from .rollout import consumes_full_image, rollout_cls_tokens
+from .rollout import rollout_cls_tokens
 
 log = logging.getLogger(__name__)
 
@@ -24,9 +25,9 @@ def _policy_rollout_cls(*, clf, images, joint, n, canvas_grid, glimpse_px, amp_c
     ``rollout_cls_tokens`` it mirrors, so the accuracy code below is shared."""
     from canvit_pytorch import sample_at_viewpoint
 
+    from ..harness.rollout.episode import derive_glimpse_px
     from ..harness.rollout.eval_viewpoints import deploy_rollout_viewpoints
     from ..harness.rollout.viewpoint import ViewpointType
-    from .rollout import derive_glimpse_px
 
     B = images.shape[0]
     full_image = consumes_full_image(clf)

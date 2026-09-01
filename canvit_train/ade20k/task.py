@@ -25,8 +25,8 @@ from torch import Tensor
 
 from canvit_train.ade20k.data import IGNORE_LABEL
 from canvit_train.ade20k.metrics import ce_loss
-from canvit_train.ade20k.rollout import consumes_full_image, derive_glimpse_px
 from canvit_train.harness.rollout import GlimpseOut, TaskLoss
+from canvit_train.harness.rollout.episode import consumes_full_image, derive_glimpse_px
 from canvit_train.harness.rollout.viewpoint import ViewpointType
 
 log = logging.getLogger(__name__)

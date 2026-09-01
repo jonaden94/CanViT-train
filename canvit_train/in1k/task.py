@@ -18,8 +18,8 @@ from canvit_pytorch import CanViTForImageClassification, RecurrentState, sample_
 from canvit_pytorch.policy.features import INTRINSIC_GROUPS
 from torch import Tensor
 
-from canvit_train.ade20k.rollout import consumes_full_image, derive_glimpse_px
 from canvit_train.harness.rollout import GlimpseOut, TaskLoss
+from canvit_train.harness.rollout.episode import consumes_full_image, derive_glimpse_px
 from canvit_train.harness.rollout.viewpoint import ViewpointType
 
 # in1k's classifier reads the CLS token, not a spatial probe, so the probe-entropy
