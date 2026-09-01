@@ -295,8 +295,13 @@ class In1kRunTask:
                 "glimpse_grid_size": core.glimpse_grid_size}
 
     def checkpoint_metadata(self, model):
+        from canvit_train.checkpoint import downstream_pretrain_view_scale
         return {"task": "in1k", "mode": self.cfg.mode, "scene_size": self.cfg.scene_size,
-                "n_timesteps": self.cfg.n_timesteps}
+                "n_timesteps": self.cfg.n_timesteps,
+                "model_repo": str(self.cfg.model_repo),
+                "pretrain_view_scale": downstream_pretrain_view_scale(
+                    patcher_name=getattr(model.canvit.cfg, "patcher_name", None),
+                    foveated_scale=self.cfg.foveated_scale)}
 
 
 __all__ = ["POLICY_FEATURE_GROUPS", "BoundIn1kTask", "In1kRunTask"]

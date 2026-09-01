@@ -479,9 +479,13 @@ class Ade20kRunTask:
                 "dropout": core.head.dropout_p, "use_ln": core.head.use_ln}
 
     def checkpoint_metadata(self, model):
+        from canvit_train.checkpoint import downstream_pretrain_view_scale
         return {"task": "ade20k", "scene_size": self.cfg.scene_size,
                 "n_timesteps": self.cfg.n_timesteps,
-                "pretrain_view_scale": getattr(self.cfg.foveated_scale, "fixed_scale", None)}
+                "model_repo": str(self.cfg.model_repo),
+                "pretrain_view_scale": downstream_pretrain_view_scale(
+                    patcher_name=getattr(model.canvit.cfg, "patcher_name", None),
+                    foveated_scale=self.cfg.foveated_scale)}
 
 
 __all__ = ["POLICY_FEATURE_GROUPS", "BoundAde20kTask", "Ade20kRunTask"]

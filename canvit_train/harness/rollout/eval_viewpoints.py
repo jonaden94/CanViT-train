@@ -26,11 +26,15 @@ every existing config is a no-op through this module.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 from canvit_pytorch.viewpoint import Viewpoint
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # the task configs import EvalPolicy from here, so stay dependency-light
     from canvit_train.harness.config import FoveatedScaleConfig
@@ -157,6 +161,46 @@ def make_random_viewpoints(
     ]
 
 
+@lru_cache(maxsize=8)
+def _warn_off_scale(policy: str, trained: float, got: str) -> None:
+    """Once per (policy, scale) per process — this sits inside a per-batch call."""
+    log.warning(
+        "eval_policy=%r puts a FIXED-SCALE foveated/square model OUT OF DISTRIBUTION: it "
+        "was pretrained at view scale %s but this trajectory uses %s. The foveation window "
+        "is fix_size = scale * H, so every glimpse is off-scale; the symptom is a metric "
+        "that FALLS as glimpses accumulate. Measured cost on exp33/exp34: -0.114 top1 "
+        "(in1k) and -0.128 mIoU at t9 (ade20k). Pass --cfg.eval-override-scale %s to keep "
+        "this policy's CENTERS at the model's own scale, or use eval_policy='fixation_grid'.",
+        policy, trained, got, trained)
+
+
+def _check_scale_in_distribution(
+    vps: list[Viewpoint], *, policy: str, is_foveated: bool, foveated_scale: Any,
+) -> None:
+    """Warn when the generated trajectory's scales do not match what a fixed-scale
+    foveated model trained at.
+
+    Checks the GENERATED SCALES rather than the policy name on purpose: a name-based table
+    goes stale the moment a policy is added or an ``override_scale`` is passed, and this
+    has to stay right for the combinations Stage 3 opens up (eval-merge doc §5). Silent for
+    uniform models (their OOD axis is the glimpse crop in pixels, not the view scale) and
+    for sampled-scale modes, which are scale-robust by construction.
+    """
+    if not is_foveated or foveated_scale is None:
+        return
+    if getattr(foveated_scale, "mode", None) != "fixed":
+        return
+    trained = getattr(foveated_scale, "fixed_scale", None)
+    if trained is None or not vps:
+        return
+    scales = torch.cat([v.scales.reshape(-1) for v in vps])
+    if torch.allclose(scales, torch.full_like(scales, float(trained))):
+        return
+    lo, hi = scales.min().item(), scales.max().item()
+    got = f"{lo:g}" if lo == hi else f"scales in [{lo:g}, {hi:g}]"
+    _warn_off_scale(policy, float(trained), got)
+
+
 def open_loop_viewpoints(
     policy: str,
     *,
@@ -200,13 +244,19 @@ def open_loop_viewpoints(
             return vps
         return [replace(v, scales=torch.full_like(v.scales, override_scale)) for v in vps]
 
+    def _out(vps: list[Viewpoint]) -> list[Viewpoint]:
+        vps = _pin(vps)
+        _check_scale_in_distribution(vps, policy=policy, is_foveated=is_foveated,
+                                     foveated_scale=foveated_scale)
+        return vps
+
     if policy == "coarse_to_fine":
-        return _pin(make_eval_viewpoints(batch_size, device, n_viewpoints=n))
+        return _out(make_eval_viewpoints(batch_size, device, n_viewpoints=n))
     if policy == "fixation_grid":
-        return _pin(make_eval_viewpoints_foveated(batch_size, device, n_viewpoints=n,
-                                                  scale=foveated_eval_scale))
+        return _out(make_eval_viewpoints_foveated(batch_size, device, n_viewpoints=n,
+                                                 scale=foveated_eval_scale))
     if policy == "full":
-        return _pin(repeated_full_scene(batch_size, device, n))
+        return _out(repeated_full_scene(batch_size, device, n))
     if policy == "random":
         from canvit_train.harness.config import FoveatedScaleConfig
         # Only the foveated branch reads it, and there a WRONG scale is not a soft
@@ -216,7 +266,7 @@ def open_loop_viewpoints(
         assert not (is_foveated and foveated_scale is None), (
             "eval_policy='random' on a foveated/square model needs the pretraining "
             "foveated_scale; defaulting it would put every glimpse out of distribution.")
-        return _pin(make_random_viewpoints(
+        return _out(make_random_viewpoints(
             batch_size, device, n, min_scale=min_scale, max_scale=max_scale,
             start_with_full_scene=True, is_foveated=is_foveated,
             foveated_scale=foveated_scale or FoveatedScaleConfig(),

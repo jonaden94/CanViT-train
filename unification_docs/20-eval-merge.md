@@ -451,7 +451,66 @@ ade20k `fixation_grid` and `full`+pin 2.0 (ten timesteps each), in1k `fixation_g
 machine; per F2 the `random` rows cannot gate anything past t0. This is pure code motion, so
 anything that moves at all is a bug introduced here.
 
-### Stage 2 — Close the two footguns
+### Stage 2 — Close the two footguns — WRITER HALF EXECUTED 2026-09-01, reader deferred to Stage 3
+
+**Resequenced, for a reason found while starting it.** The plan had both resolvers landing
+here. But `resolve_view_scale`'s only legitimate caller is standalone eval, which is Stage 3
+— wiring auto-resolution into *training-time* validation would silently re-base exp25/exp29/
+exp33, which this plan forbids elsewhere. And `teacher_probe_for_model` is largely already
+here: `distill/probe.py::PROBE_REGISTRY` maps `teacher_name` to probe repo **and
+resolution**, which canvit_eval's `TEACHER_REGISTRY` does not carry. So landing the readers
+now would mean committing unused functions. They move to Stage 3, where the caller exists.
+
+What went in instead is the half that has a live defect behind it and a real gate.
+
+**1. Downstream checkpoints now record the view scale, in ONE shape.** New
+`checkpoint/downstream_pretrain_view_scale` produces the same dict
+`extract_pretrain_view_scale` builds for distill, and both downstream tasks call it. Three
+things it fixes, all found by looking at real checkpoints rather than at the plan:
+
+* **in1k recorded the scale NOWHERE** — not `metadata.pretrain_view_scale`, not
+  `training_config_history` (whose in1k entries hold only mode/n_timesteps/scene_size/task/
+  train_spec). F7 said "two schemas"; the truth was two schemas and one absence.
+* **ade20k recorded a bare float**, so a reader written against the published dict form is a
+  silent no-op on it. Every pre-2026-09-01 ade20k checkpoint is still in that state, so the
+  reader must accept both — `_as_view_scale_dict` does.
+* **ade20k recorded it unconditionally**, i.e. `1.0` for a UNIFORM run, whose view scale is
+  meaningless. `extract_pretrain_view_scale`'s contract is that `None` means "unknown, never
+  read as 1.0"; emitting 1.0 for uniform broke exactly that. Now gated on the patcher.
+
+**2. `to_hf`'s classifier layout carries a metadata block** (F6b). `save_pretrained` records
+only `__init__` kwargs, so it is merged into config.json afterwards — verified safe, the
+mixin filters config.json to the signature on the way back, which is how the pretraining
+layout has always worked. For the scale it tries the payload first, then **the backbone repo
+in `model_config["model_repo"]`**, which is what rescues exp25/exp29/exp33 — so this fixes
+existing checkpoints, not only future ones. `teacher_name` has no first step at all (a
+downstream checkpoint never recorded it) and always comes from the backbone. Both fall back
+to `None` and a loud warning naming the measured cost, never to a guess.
+
+**3. The off-scale warning at the point of use** (F5). `open_loop_viewpoints` now warns when
+a fixed-scale foveated model's trajectory does not sit at its training scale. It checks the
+**generated scales, not the policy name** — a name table goes stale the moment a policy or an
+override is added, and it has to stay right for the combinations Stage 3 opens up. Silent for
+uniform models and for sampled-scale modes, which are scale-robust by construction. This is
+the `documented-drift-still-ships` lesson applied: `HISTORICAL_DEFAULTS`' docstring already
+warned about this and it happened anyway.
+
+**Gate — PASSED.**
+
+* 325 tests (313 + 12 new: 5 on the metadata block, 7 on the warning).
+* All four Stage-0 **(GATE)** rows still **bit-identical** — the warning sits in the numeric
+  path, so this is not a formality.
+* **The footgun is measurably closed, and the two repos agree exactly.** Re-export exp33's
+  finetune and ask canvit_eval for one glimpse with no scale argument: it auto-resolves 2.0
+  from the new metadata and scores **top1 0.81258 / top5 0.95806** — identical, to
+  `+0.00e+00` on both, to canvit_train's `fixation_grid` at T=1. Before the fix the same
+  command ran unpinned at **0.72580**. The metadata block alone is worth **+0.087 top1**.
+
+**Still open, deliberately:** existing published HF directories do not gain the field
+retroactively — they need re-exporting. Nothing in flight depends on one (exp36 pins its own
+commit and reads `.pt` files directly).
+
+### Stage 2 (original text, for the record) — Close the two footguns
 
 Port `resolve_view_scale` (auto-derive the eval view-scale from the checkpoint's recorded
 `pretrain_view_scale`) and `teacher_probe_for_model` (auto-select teacher + in1k probe from

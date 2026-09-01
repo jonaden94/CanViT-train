@@ -73,6 +73,45 @@ class CheckpointData(TypedDict):
     provenance_history: dict[str, dict] | None
 
 
+SCALE_SENSITIVE_PATCHERS = ("foveated", "square")
+"""Patchers whose out-of-distribution axis is the VIEW SCALE (``fix_size = scale * H``).
+The uniform patcher's is the glimpse crop in pixels, so a view scale recorded for it means
+nothing — mirrors ``canvit_pytorch.checkpoint_schema.SCALE_SENSITIVE_PATCHERS``."""
+
+
+def downstream_pretrain_view_scale(*, patcher_name: str | None, foveated_scale) -> dict | None:
+    """The ``pretrain_view_scale`` an ade20k/in1k checkpoint should record, in the SAME
+    dict shape ``extract_pretrain_view_scale`` builds for a distill checkpoint.
+
+    One shape, so a downstream consumer has one thing to parse. Two things this fixes:
+
+    * **ade20k recorded a bare float**, so a reader written against the published (dict)
+      form silently saw "not recorded" — and every pre-2026-09-01 ade20k checkpoint still
+      does; a reader must accept both.
+    * **ade20k recorded it unconditionally**, i.e. ``1.0`` for a UNIFORM run, whose view
+      scale is meaningless. ``extract_pretrain_view_scale``'s contract is that ``None``
+      means "unknown, and never read it as 1.0"; emitting 1.0 for uniform breaks exactly
+      that. Gated on the patcher here.
+    * **in1k recorded nothing at all**, so a foveated finetune could not report the scale
+      it was trained at (exp25/exp29/exp33 are all in that state — for those the only
+      recovery is the backbone repo in ``model_config["model_repo"]``, which is what
+      ``checkpoint/to_hf.py`` falls back to).
+
+    Nothing in this repo reads the field yet; ``CanViT-eval`` does, and the standalone
+    evaluator that replaces it will (eval-merge doc §5, Stage 3).
+    """
+    if patcher_name not in SCALE_SENSITIVE_PATCHERS or foveated_scale is None:
+        return None
+    return {
+        "patcher_name": patcher_name,
+        "mode": getattr(foveated_scale, "mode", None),
+        "distribution": getattr(foveated_scale, "distribution", None),
+        "fixed_scale": getattr(foveated_scale, "fixed_scale", None),
+        "min_scale": getattr(foveated_scale, "min_scale", None),
+        "max_scale": getattr(foveated_scale, "max_scale", None),
+    }
+
+
 def _git_info() -> tuple[str | None, bool]:
     try:
         commit = subprocess.check_output(

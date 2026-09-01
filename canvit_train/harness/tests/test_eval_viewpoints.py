@@ -239,3 +239,66 @@ def test_ade20k_best_metric_follows_the_eval_policy(eval_policy, expected):
 
     task = Ade20kRunTask(replace(Ade20kConfig(), eval_policy=eval_policy))
     assert task.best_metric == expected
+
+
+# --- the off-scale warning at the point of use -------------------------------
+# HISTORICAL_DEFAULTS sends a foveated in1k run to unpinned coarse_to_fine ON PURPOSE, to
+# keep exp25/exp29/exp33 comparable, and its docstring's "(or `full`)" advice is off-scale
+# too. Measured cost of either: -0.114 top1 on in1k, -0.128 mIoU at t9 on ade20k. A doc
+# paragraph did not stop it happening, so the warning has to be at the point of use.
+# Checks the GENERATED SCALES, not the policy name, so it stays right for the combinations
+# Stage 3 opens up.
+
+_FIXED2 = FoveatedScaleConfig(mode="fixed", fixed_scale=2.0)
+
+
+def _emit(policy: str, *, fs=_FIXED2, is_fov=True, override=None):
+    torch.manual_seed(0)
+    from canvit_train.harness.rollout.eval_viewpoints import _warn_off_scale
+    _warn_off_scale.cache_clear()   # the warning is once-per-process
+    return open_loop_viewpoints(
+        policy, batch_size=_B, device=_DEV, n=_N, is_foveated=is_fov, foveated_scale=fs,
+        foveated_eval_scale=fs.fixed_scale, override_scale=override,
+    )
+
+
+@pytest.mark.parametrize("policy", ["coarse_to_fine", "full"])
+def test_off_scale_policies_warn_on_a_fixed_scale_foveated_model(policy, caplog):
+    with caplog.at_level("WARNING"):
+        _emit(policy)
+    assert "OUT OF DISTRIBUTION" in caplog.text
+    assert "eval-override-scale 2" in caplog.text  # names the remedy, with the value
+
+
+@pytest.mark.parametrize("policy", ["fixation_grid", "random"])
+def test_in_distribution_policies_stay_quiet(policy, caplog):
+    """fixation_grid deploys at foveated_eval_scale and random goes through RandomSelector,
+    so both already sit at the training scale. A warning here would be noise."""
+    with caplog.at_level("WARNING"):
+        _emit(policy)
+    assert "OUT OF DISTRIBUTION" not in caplog.text
+
+
+def test_an_explicit_pin_silences_it(caplog):
+    """Pinning to the training scale is the documented remedy, so taking it must not warn —
+    and the pin must actually reach every glimpse, which is what makes it in-distribution."""
+    with caplog.at_level("WARNING"):
+        vps = _emit("coarse_to_fine", override=2.0)
+    scales = torch.cat([v.scales.reshape(-1) for v in vps])
+    assert torch.allclose(scales, torch.full_like(scales, 2.0))
+    assert "OUT OF DISTRIBUTION" not in caplog.text
+
+
+def test_uniform_models_never_warn(caplog):
+    """A uniform model's OOD axis is the glimpse crop in pixels, not the view scale."""
+    with caplog.at_level("WARNING"):
+        _emit("coarse_to_fine", fs=_FS, is_fov=False)
+    assert "OUT OF DISTRIBUTION" not in caplog.text
+
+
+def test_sampled_scale_modes_never_warn(caplog):
+    """per_rollout / per_glimpse models saw a range of scales in training, so a varying
+    trajectory is in distribution for them by construction."""
+    with caplog.at_level("WARNING"):
+        _emit("coarse_to_fine", fs=FoveatedScaleConfig(mode="per_glimpse"))
+    assert "OUT OF DISTRIBUTION" not in caplog.text

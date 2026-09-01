@@ -36,6 +36,7 @@ from typing import Any
 import torch
 import tyro
 from canvit_pytorch.checkpoint_schema import (
+    SCALE_SENSITIVE_PATCHERS,
     extract_pretrain_view_scale,
     normalize_schema,
 )
@@ -96,7 +97,85 @@ def is_classifier_checkpoint(raw: dict) -> bool:
     return (raw.get("model_config") or {}).get("task") == "in1k"
 
 
-def classifier_to_hf(raw: dict, out_dir: Path) -> None:
+def _as_view_scale_dict(value: Any, patcher_name: str | None) -> dict[str, Any] | None:
+    """Coerce a recorded ``pretrain_view_scale`` to the canonical dict form.
+
+    Two forms exist in the wild: the dict a distill HF export carries, and the bare FLOAT
+    every ade20k checkpoint written before 2026-09-01 recorded. A reader that handles only
+    the dict is a silent no-op on the float, which is how a foveated model ends up evaluated
+    at the policy's own scales. Returns ``None`` for a uniform model or an unusable value.
+    """
+    if patcher_name not in SCALE_SENSITIVE_PATCHERS:
+        return None
+    if isinstance(value, dict):
+        return value if value.get("mode") is not None else None
+    if isinstance(value, int | float):
+        # A bare float only ever meant `foveated_scale.fixed_scale`.
+        return {"patcher_name": patcher_name, "mode": "fixed", "distribution": None,
+                "fixed_scale": float(value), "min_scale": None, "max_scale": None}
+    return None
+
+
+def classifier_metadata(raw: dict, pt_path: Path) -> dict[str, Any]:
+    """The ``metadata`` block for the classifier HF layout.
+
+    ``save_pretrained`` writes only the ``__init__`` kwargs, so before this the published
+    classifier carried NO metadata and CanViT-eval's ``resolve_view_scale`` /
+    ``teacher_probe_for_model`` were both inert on it — a foveated finetune would be
+    evaluated at the policy's own scales, measured at -0.114 top1 (eval-merge doc §5, F5/F6).
+
+    ``pretrain_view_scale`` is resolved in two steps because in1k checkpoints written before
+    2026-09-01 record it NOWHERE — not in ``metadata``, not in ``training_config_history``:
+
+    1. the payload's own record (new checkpoints, and ade20k's float form), then
+    2. the BACKBONE repo the run was built on (``model_config["model_repo"]``), which does
+       carry it. That rescues exp25/exp29/exp33, so this is not only a fix going forward.
+
+    ``teacher_name`` has no step 1 at all — a downstream checkpoint never recorded it — so it
+    always comes from the backbone. Both fall back to ``None``, never to a guess: the
+    contract is that ``None`` means "unknown", and a consumer must not read it as 1.0.
+    """
+    from canvit_pytorch.model_source import read_pretrain_metadata
+
+    mc = raw.get("model_config") or {}
+    md = raw.get("metadata") or {}
+    patcher = (mc.get("canvit") or {}).get("patcher_name")
+    repo = mc.get("model_repo") or md.get("model_repo")
+
+    view_scale = _as_view_scale_dict(md.get("pretrain_view_scale"), patcher)
+    teacher_name = md.get("teacher_name")
+    if (view_scale is None or teacher_name is None) and repo:
+        try:
+            backbone_md = read_pretrain_metadata(str(repo))
+        except Exception as exc:  # a path from another machine, or a repo since moved
+            log.warning("could not read backbone metadata from %s (%s); "
+                        "pretrain_view_scale/teacher_name stay unknown", repo, exc)
+            backbone_md = {}
+        if view_scale is None:
+            view_scale = _as_view_scale_dict(backbone_md.get("pretrain_view_scale"), patcher)
+            if view_scale is not None:
+                log.info("pretrain_view_scale recovered from the backbone repo %s", repo)
+        teacher_name = teacher_name or backbone_md.get("teacher_name")
+
+    if patcher in SCALE_SENSITIVE_PATCHERS and view_scale is None:
+        log.warning(
+            "%s is a %r-patcher checkpoint but its pretraining view scale could not be "
+            "determined. Downstream eval cannot auto-pin the glimpse scale and will use "
+            "the policy's own — out of distribution, measured at -0.114 top1 / -0.128 mIoU. "
+            "Pass the scale explicitly when evaluating.", pt_path, patcher)
+
+    return {
+        "source_pt": str(pt_path),
+        "step": raw.get("step"),
+        "task": md.get("task"),
+        "mode": md.get("mode"),
+        "model_repo": str(repo) if repo else None,
+        "teacher_name": teacher_name,
+        "pretrain_view_scale": view_scale,
+    }
+
+
+def classifier_to_hf(raw: dict, out_dir: Path, pt_path: Path) -> None:
     """Write the ``CanViTForImageClassification.from_pretrained`` layout.
 
     Rebuilds the module and reuses the class's OWN ``save_pretrained`` (from
@@ -123,7 +202,16 @@ def classifier_to_hf(raw: dict, out_dir: Path) -> None:
         f"head has {clf.head.out_features} classes, checkpoint says {n_classes}")
     out_dir.mkdir(parents=True, exist_ok=True)
     clf.save_pretrained(out_dir)
+    # `save_pretrained` records ONLY the __init__ kwargs, so the provenance block has to be
+    # merged in afterwards. Verified safe: PyTorchModelHubMixin filters config.json to the
+    # __init__ signature on the way back, so an extra `metadata` key does not reach
+    # __init__ — the same arrangement the pretraining layout has always used.
+    cfg_path = out_dir / "config.json"
+    published = json.loads(cfg_path.read_text())
+    published["metadata"] = classifier_metadata(raw, pt_path)
+    cfg_path.write_text(json.dumps(published, indent=2, default=str))
     log.info("Wrote %s (step=%s)", out_dir, raw.get("step"))
+    log.info("pretrain_view_scale: %s", published["metadata"]["pretrain_view_scale"])
     log.info("Load with: CanViTForImageClassification.from_pretrained(%r)", str(out_dir))
 
 
@@ -131,7 +219,7 @@ def main(args: Args) -> None:
     log.info("Loading %s ...", args.pt_path)
     raw = torch.load(args.pt_path, map_location="cpu", weights_only=False)
     if is_classifier_checkpoint(raw):
-        classifier_to_hf(raw, args.out_dir)
+        classifier_to_hf(raw, args.out_dir, args.pt_path)
         return
     raw = normalize_schema(raw)
     _migrate_standardizers_in_place(raw)
