@@ -13,7 +13,7 @@ stay frozen.
 
 ```bash
 for s in 0 1 2 3 4 5 6 7 8 9; do
-  SEED=$s bash slurm/runs/policy_on_own_fovi_probe/policy-qreg-own-fovi-s0.sh
+  SEED=$s bash slurm/runs/exp36_policy_qreg_fovi/policy-qreg-fovi-s0.sh
 done
 ```
 
