@@ -433,15 +433,59 @@ Training-time validation and standalone eval share the episode runner and differ
 config: subset vs full val set, glimpse count, DDP vs single-GPU. Nothing stops X glimpses
 in training and Y standalone.
 
-Three requirements Stage 0 added:
+#### The policy surface: orthogonal axes, named presets (owner decision, 2026-08-31)
+
+F3 forced the question "what does `--policy random` mean" and the answer is that `random`
+was never one thing. It bundles independent choices. Decompose them:
+
+| axis | values |
+|---|---|
+| `center` | `safebox` (coupled to scale, no overshoot) · `frame` (uniform over [-1,1]^2) · `quadtree` · `fixation_grid` (fixed 3x3 sequence) · `constant` |
+| `scale` | `pin:<v>` · `safebox` (p(s) ~ 1-s) · `quadtree` (1.0, 0.5, 0.25, ...) · `constant:1.0` |
+| `t0` | `center_anchor` · `random` · `same_as_rest` |
+| `order` | `coarse_to_fine` · `fine_to_coarse` (quadtree centers only) |
+
+They really are independent: canvit_eval's safebox CENTERS with the scale pinned to 2.0 is a
+coherent, useful measurement on a foveated model — measured in Stage 0, and it tracks
+canvit_train's foveated `random` to ~1e-3 from t1 on. `eval_override_scale` stops being a
+special case and becomes the `scale` axis, overridden.
+
+**Presets stay the primary interface.** `--eval-policy <name>` expands to an axis tuple;
+any axis is individually overridable on top. The named presets are exactly the trajectories
+that already have numbers, and each one is **gated on expanding to a bit-identical result**
+— that is what makes "this config reproduces the exp33 protocol" a test rather than a claim.
+
+**Any combination the code can execute is allowed.** Untested is not forbidden: it warns,
+runs, and gets its resolved tuple recorded. Two hard errors only:
+
+1. **A flag that would be silently ignored.** A `center` law passed alongside a closed-loop
+   policy (`policy`, `entropy_coarse_to_fine`) does nothing — the center comes from the
+   scorer or the entropy map. Same for `order` on non-quadtree centers. Accepting those
+   quietly is worse than refusing: you get a number and believe it came from the config you
+   typed. Note closed-loop is only PARTLY non-decomposable — the `scale` axis still applies,
+   and for foveated it is already pinned to the training scale (what exp36 does).
+2. **A genuine contradiction**, e.g. the scale pinned to two different values.
+
+Off-scale foveated is NOT an error. It warns with the measured cost (F5: −0.114 top1 on
+in1k, −0.128 mIoU on ade20k) and stamps the mismatch into the output — because measuring OOD
+degradation is a legitimate experiment, and because `HISTORICAL_DEFAULTS["in1k"]` keeps that
+default on purpose to stay comparable with exp25/exp29/exp33.
+
+**Provenance, not restriction, is what protects comparability.** Every eval output records
+the fully resolved axis tuple and whether it matched a known preset. That is what makes "is
+this number comparable to exp33?" answerable later, for any combination however exotic; and
+it makes promoting a combination worth keeping into a preset a one-line change with a
+recorded reference number.
+
+The `random` collision resolves as: keep canvit_train's meaning under the historical name
+(every published number was measured under it), and reach canvit_eval's via the axes
+(`center=safebox`, `t0=random`) or its own preset name.
+
+Three further requirements Stage 0 added:
 
 * **`--eval-override-scale` on all three tasks** (F4) — today only ade20k has it, and in1k,
   the one task whose historical default is the OOD footgun, cannot express the remedy.
   Unify the knob, keep each task's default (`unify-the-knob-not-the-defaults`).
-* **Do not merge the name `random`** (F3) — it means "anchored + patcher-aware" here and
-  "unanchored + uniform-safe-box" in canvit_eval, a 0.0205 difference at t0. Either keep two
-  names or make the t0 anchor an explicit flag; a silent merge picks one repo's published
-  numbers over the other's.
 * **`evaluate` must RETURN the per-timestep series, not log it** (F8) — distill currently
   returns one scalar and pushes ten series into the tracker, which is why Stage 0's distill
   baseline is a single number.
