@@ -564,9 +564,37 @@ timesteps each), in1k `fixation_grid`, distill `val_metric`. That is the gate th
 always going to be judged on, and the numbers came from the pre-existing drivers, so the new
 entry point is proven against code it replaces. Artifacts: `stage0_baseline/gate3b_*.json`.
 
-**Still to do in this stage:** the two readers (§Stage 2 deferred them here, where the caller
-now exists) and F8 (distill's `validate` returning its per-timestep series instead of logging
-it, so a standalone distill record is more than one scalar).
+**3c — the readers and F8, done 2026-09-02.**
+
+*The readers do not pin anything.* Stage 2 deferred them here and the framing changed on the
+way: which trajectory to measure is the user's choice and this code does not make it (owner,
+2026-09-02). What a checkpoint knows is the scale it was pretrained at and the teacher that
+supervised it, and making the user retype either is how they get mistyped — a mistyped view
+scale being the silent failure this whole merge exists to close.
+
+So `adopt_checkpoint_provenance` fills in `foveated_scale` and `teacher_name` **only where
+the user left the dataclass default**, logs what it adopted, and records it in the artifact.
+Pinning stays explicit via `--cfg.eval-override-scale`. The payoff is that the off-scale
+warning now compares against the model's REAL training scale instead of a config default of
+1.0 — so `--cfg.eval-policy full` on exp34 with nothing else typed says "pretrained at 2.0
+but this trajectory uses 1" and names the remedy, where before it had no way to know.
+
+`read_pretraining_provenance` is shared with `to_hf` (one resolution order: the payload's own
+record, including ade20k's legacy float, then the backbone repo — the only route for
+exp25/exp29/exp33). `teacher_name` feeds `distill/probe.py::PROBE_REGISTRY`, which already
+carried the probe repo AND its resolution, so canvit_eval's `teacher_probe_for_model` needed
+no port beyond this read.
+
+*F8.* `validate` now RETURNS its scalars and the caller logs them. The key names are
+character-for-character what it used to log, and distill declares `metrics_prefix = "val"` so
+`run.py` keeps the historical namespace — otherwise every exp22–exp32 dashboard would break.
+A standalone distill record went from **1 metric to 56** (per-timestep `scene_cos_raw/norm`,
+`cls_cos_raw/norm`, `in1k_tts_top1`, plus the teacher probe top-1).
+
+**Gate — PASSED.** 347 tests, and all four standalone rows still **bit-identical** to the
+Stage-0 baseline. F8 rewrote distill's return path, so that was not a formality.
+
+**Stage 3 is complete.**
 
 ### Stage 3 (original text, for the record) — `harness.evaluate`
 

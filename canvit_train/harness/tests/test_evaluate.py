@@ -88,3 +88,100 @@ def test_auto_is_recorded_as_what_it_resolved_to():
     p = _resolved_protocol(In1kConfig(), "in1k", is_foveated=True)
     assert p["eval_policy"] == "coarse_to_fine"      # HISTORICAL_DEFAULTS["in1k"], foveated
     assert p["eval_policy_requested"] == "auto"
+
+
+# --- reading provenance off the checkpoint ------------------------------------
+# Deferred here from Stage 2, where the readers would have had no caller. Their job is NOT
+# to pin the eval scale -- which trajectory to measure is the user's choice and this code
+# does not make it -- but to stop the user having to retype what the checkpoint records, so
+# the off-scale warning compares against the real training scale instead of a default of 1.0.
+
+def _payload(*, patcher="foveated", scale=2.0, teacher="dinov3_vitl16"):
+    md = {"task": "ade20k", "teacher_name": teacher}
+    if scale is not None:
+        md["pretrain_view_scale"] = scale          # ade20k's legacy BARE FLOAT form
+    return {"model_config": {"canvit": {"patcher_name": patcher}}, "metadata": md}
+
+
+def test_the_checkpoints_scale_is_adopted_when_the_user_left_the_default():
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    assert cfg.foveated_scale.fixed_scale == 1.0, "the dataclass default we are detecting"
+    adopted = adopt_checkpoint_provenance(cfg, _payload(), source="x.pt")
+    assert cfg.foveated_scale.fixed_scale == 2.0
+    assert any("foveated_scale" in a for a in adopted)
+
+
+def test_an_explicit_scale_always_wins():
+    """Anything typed on the command line must survive. Silently replacing it would be the
+    same class of bug as silently ignoring it."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    cfg.foveated_scale.fixed_scale = 0.75
+    adopted = adopt_checkpoint_provenance(cfg, _payload(scale=2.0), source="x.pt")
+    assert cfg.foveated_scale.fixed_scale == 0.75
+    assert not any("foveated_scale" in a for a in adopted)
+
+
+def test_adoption_never_pins_the_eval_scale():
+    """The distinction the owner asked for: make the default honest, do not choose the
+    protocol. Pinning stays explicit via --cfg.eval-override-scale."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    adopt_checkpoint_provenance(cfg, _payload(), source="x.pt")
+    assert cfg.eval_override_scale is None
+
+
+def test_a_uniform_checkpoint_adopts_no_scale():
+    """A uniform model has no view scale; its OOD axis is the glimpse crop in pixels."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    adopted = adopt_checkpoint_provenance(cfg, _payload(patcher="uniform"), source="x.pt")
+    assert cfg.foveated_scale.fixed_scale == 1.0
+    assert not any("foveated_scale" in a for a in adopted)
+
+
+def test_distill_adopts_the_teacher_that_supervised_it():
+    """teacher_name picks both the teacher and the IN1k probe (PROBE_REGISTRY). Retyping it
+    is how a vitl16 run gets evaluated against a vitb16 probe."""
+    from canvit_train.distill.config import Config
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Config()
+    assert cfg.teacher_name == "dinov3_vitb16"
+    adopted = adopt_checkpoint_provenance(cfg, _payload(teacher="dinov3_vitl16"), source="x.pt")
+    assert cfg.teacher_name == "dinov3_vitl16"
+    assert "teacher_name=dinov3_vitl16" in adopted
+
+
+# --- F8: the series comes back, and keeps its wandb namespace -----------------
+
+def test_distill_keeps_its_val_namespace():
+    """`validate` used to LOG the per-timestep series and return one float; it now returns
+    them and the caller logs. The prefix has to stay `val/` or every exp22-exp32 dashboard
+    breaks — while ade20k/in1k keep the harness default they have always used."""
+    from canvit_train.ade20k.task import Ade20kRunTask
+    from canvit_train.distill.task import DistillRunTask
+    from canvit_train.in1k.task import In1kRunTask
+
+    assert DistillRunTask.metrics_prefix == "val"
+    for t in (Ade20kRunTask, In1kRunTask):
+        assert getattr(t, "metrics_prefix", "eval") == "eval", t.__name__
+
+
+def test_validate_returns_a_mapping_not_a_scalar():
+    """The signature F8 is about: a standalone distill evaluation could only ever see one
+    number while this returned a float."""
+    import inspect
+
+    from canvit_train.distill.validate import validate
+
+    assert inspect.signature(validate).return_annotation == dict[str, float]

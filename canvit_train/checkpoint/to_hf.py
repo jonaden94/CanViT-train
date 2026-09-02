@@ -116,30 +116,31 @@ def _as_view_scale_dict(value: Any, patcher_name: str | None) -> dict[str, Any] 
     return None
 
 
-def classifier_metadata(raw: dict, pt_path: Path) -> dict[str, Any]:
-    """The ``metadata`` block for the classifier HF layout.
+def read_pretraining_provenance(
+    raw: dict, *, source: Any = "<checkpoint>",
+) -> tuple[dict[str, Any] | None, str | None]:
+    """``(pretrain_view_scale, teacher_name)`` for a checkpoint, or ``(None, None)``.
 
-    ``save_pretrained`` writes only the ``__init__`` kwargs, so before this the published
-    classifier carried NO metadata and CanViT-eval's ``resolve_view_scale`` /
-    ``teacher_probe_for_model`` were both inert on it — a foveated finetune would be
-    evaluated at the policy's own scales, measured at -0.114 top1 (eval-merge doc §5, F5/F6).
+    A checkpoint knows what scale it was pretrained at and which teacher supervised it.
+    Making the user retype either when evaluating is how they end up mistyped — so the
+    standalone evaluator reads them from here (``harness/evaluate.py``), and ``to_hf``
+    writes them into the published layout.
 
-    ``pretrain_view_scale`` is resolved in two steps because in1k checkpoints written before
-    2026-09-01 record it NOWHERE — not in ``metadata``, not in ``training_config_history``:
+    Resolution order, because a DOWNSTREAM checkpoint records less than a distill one:
 
-    1. the payload's own record (new checkpoints, and ade20k's float form), then
-    2. the BACKBONE repo the run was built on (``model_config["model_repo"]``), which does
-       carry it. That rescues exp25/exp29/exp33, so this is not only a fix going forward.
+    1. the payload's own ``metadata`` — new checkpoints, and ade20k's legacy bare float;
+    2. the BACKBONE repo in ``model_config["model_repo"]``, which does carry both. This is
+       the only route for exp25/exp29/exp33, whose in1k payloads record the scale nowhere.
 
-    ``teacher_name`` has no step 1 at all — a downstream checkpoint never recorded it — so it
-    always comes from the backbone. Both fall back to ``None``, never to a guess: the
-    contract is that ``None`` means "unknown", and a consumer must not read it as 1.0.
+    ``None`` means UNKNOWN and must never be read as 1.0 — a uniform model has no view
+    scale (its out-of-distribution axis is the glimpse crop in pixels), and an
+    undeterminable one is not the same as a known 1.0.
     """
     from canvit_pytorch.model_source import read_pretrain_metadata
 
     mc = raw.get("model_config") or {}
     md = raw.get("metadata") or {}
-    patcher = (mc.get("canvit") or {}).get("patcher_name")
+    patcher = (mc.get("canvit") or {}).get("patcher_name") or md.get("patcher_name")
     repo = mc.get("model_repo") or md.get("model_repo")
 
     view_scale = _as_view_scale_dict(md.get("pretrain_view_scale"), patcher)
@@ -160,9 +161,37 @@ def classifier_metadata(raw: dict, pt_path: Path) -> dict[str, Any]:
     if patcher in SCALE_SENSITIVE_PATCHERS and view_scale is None:
         log.warning(
             "%s is a %r-patcher checkpoint but its pretraining view scale could not be "
-            "determined. Downstream eval cannot auto-pin the glimpse scale and will use "
-            "the policy's own — out of distribution, measured at -0.114 top1 / -0.128 mIoU. "
-            "Pass the scale explicitly when evaluating.", pt_path, patcher)
+            "determined, so it cannot be filled in for you. Pass "
+            "--cfg.foveated-scale.fixed-scale explicitly, or an evaluation may run out of "
+            "distribution (measured at -0.114 top1 / -0.128 mIoU) with nothing to warn on.",
+            source, patcher)
+    return view_scale, teacher_name
+
+
+def classifier_metadata(raw: dict, pt_path: Path) -> dict[str, Any]:
+    """The ``metadata`` block for the classifier HF layout.
+
+    ``save_pretrained`` writes only the ``__init__`` kwargs, so before this the published
+    classifier carried NO metadata and CanViT-eval's ``resolve_view_scale`` /
+    ``teacher_probe_for_model`` were both inert on it — a foveated finetune would be
+    evaluated at the policy's own scales, measured at -0.114 top1 (eval-merge doc §5, F5/F6).
+
+    ``pretrain_view_scale`` is resolved in two steps because in1k checkpoints written before
+    2026-09-01 record it NOWHERE — not in ``metadata``, not in ``training_config_history``:
+
+    1. the payload's own record (new checkpoints, and ade20k's float form), then
+    2. the BACKBONE repo the run was built on (``model_config["model_repo"]``), which does
+       carry it. That rescues exp25/exp29/exp33, so this is not only a fix going forward.
+
+    ``teacher_name`` has no step 1 at all — a downstream checkpoint never recorded it — so it
+    always comes from the backbone. Both fall back to ``None``, never to a guess: the
+    contract is that ``None`` means "unknown", and a consumer must not read it as 1.0.
+    """
+
+    mc = raw.get("model_config") or {}
+    md = raw.get("metadata") or {}
+    repo = mc.get("model_repo") or md.get("model_repo")
+    view_scale, teacher_name = read_pretraining_provenance(raw, source=pt_path)
 
     return {
         "source_pt": str(pt_path),

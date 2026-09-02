@@ -198,8 +198,8 @@ def validate(
     log_spatial_stats: bool = False,
     teacher_name: str | None = None,
     non_blocking: bool = False,
-) -> float:
-    """Run validation over a fixed set of batches (rank 0 only).
+) -> dict[str, float]:
+    """Run validation over a fixed set of batches (rank 0 only); return its scalars.
 
     Iterates ``val_batches`` (the fixed N-sample subset, chunked by batch size),
     computes per-timestep streaming metrics per chunk, and aggregates them weighted
@@ -356,28 +356,31 @@ def validate(
             have_in1k = len(chunk_accs[0][0].in1k_accs) > 0
             in1k_accs = agg("in1k_accs") if have_in1k else []
 
+            # RETURNED, not logged. The caller namespaces and logs them (run.py's
+            # on_eval under the task's own prefix, so the wandb keys are unchanged), and
+            # a standalone evaluation gets the whole series instead of a single scalar --
+            # which is all it could see while this function logged and returned a float
+            # (eval-merge doc §5, F8). Key names are character-for-character what this
+            # used to log, so exp22-exp32 dashboards keep working.
+            series: dict[str, float] = {
+                "scene_cos_raw": scene_cos_raw[-1],
+                "scene_cos_norm": scene_cos_norm[-1],
+            }
             if teacher_accs:
                 total = sum(b for _, b in teacher_accs)
-                teacher_top1 = sum(a * b for a, b in teacher_accs) / total
-                exp.log_metric(f"{prefix}/in1k_teacher_top1", teacher_top1, step=step)
-
-            # Log both raw and normalized cosine similarities (aggregated over all N).
-            exp.log_metric(f"{prefix}/scene_cos_raw", scene_cos_raw[-1], step=step)
-            exp.log_metric(f"{prefix}/scene_cos_norm", scene_cos_norm[-1], step=step)
+                series["in1k_teacher_top1"] = sum(a * b for a, b in teacher_accs) / total
             for t, (raw, norm) in enumerate(zip(scene_cos_raw, scene_cos_norm)):
-                exp.log_metric(f"{prefix}/scene_cos_raw_t{t}", raw, step=step)
-                exp.log_metric(f"{prefix}/scene_cos_norm_t{t}", norm, step=step)
-
+                series[f"scene_cos_raw_t{t}"] = raw
+                series[f"scene_cos_norm_t{t}"] = norm
             if has_cls:
-                exp.log_metric(f"{prefix}/cls_cos_raw", cls_cos_raw[-1], step=step)
-                exp.log_metric(f"{prefix}/cls_cos_norm", cls_cos_norm[-1], step=step)
+                series["cls_cos_raw"] = cls_cos_raw[-1]
+                series["cls_cos_norm"] = cls_cos_norm[-1]
                 for t, (raw, norm) in enumerate(zip(cls_cos_raw, cls_cos_norm)):
-                    exp.log_metric(f"{prefix}/cls_cos_raw_t{t}", raw, step=step)
-                    exp.log_metric(f"{prefix}/cls_cos_norm_t{t}", norm, step=step)
-
+                    series[f"cls_cos_raw_t{t}"] = raw
+                    series[f"cls_cos_norm_t{t}"] = norm
             if have_in1k:
                 for t, ia in enumerate(in1k_accs):
-                    exp.log_metric(f"{prefix}/in1k_tts_top1_t{t}", ia, step=step)
+                    series[f"in1k_tts_top1_t{t}"] = ia
 
             # Combined 5-subplot graphs figure saved to disk at log_curves cadence.
             # Replaces the per-curve wandb log_curve calls (scene_cos_*, cls_cos_*,
@@ -431,7 +434,7 @@ def validate(
                     run_dir=run_dir,
                 )
 
-            return scene_cos_raw[-1]
+            return series
     finally:
         if model_was_training:
             model.train()

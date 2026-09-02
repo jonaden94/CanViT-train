@@ -395,7 +395,11 @@ def run(*, task: RunTask, spec: TrainSpec, settings: RunSettings) -> dict:
         val_seconds = time.perf_counter() - t_val
         log.info("step %d  eval (%.1fs): %s", step, val_seconds, metrics)
         if tracker is not None:
-            payload = {f"eval/{k}": v for k, v in metrics.items()}
+            # Per-task namespace: distill declares "val", the prefix its series have carried
+            # since the old loop and which `validate` logged itself until it started
+            # returning them instead (F8). Everyone else takes "eval".
+            ns = getattr(task, "metrics_prefix", "eval")
+            payload = {f"{ns}/{k}": v for k, v in metrics.items()}
             # How long validation costs, under the key ade20k/train.py logged it as. For a
             # probe this is the dominant non-training cost (63 val batches every 500
             # steps), so losing the series made it invisible.

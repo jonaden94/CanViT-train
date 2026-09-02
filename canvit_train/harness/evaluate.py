@@ -88,6 +88,49 @@ def _resolved_protocol(cfg: Any, task_name: str, is_foveated: bool) -> dict[str,
     }
 
 
+def adopt_checkpoint_provenance(cfg: Any, payload: dict, *, source: Any) -> list[str]:
+    """Fill in what the checkpoint already knows, WHERE THE USER LEFT THE DEFAULT.
+
+    A checkpoint records the view scale it was pretrained at and the teacher that supervised
+    it. Requiring the user to retype either is how they get mistyped — and a mistyped view
+    scale is the silent failure this whole merge exists to close: the metric falls as
+    glimpses accumulate instead of raising.
+
+    Deliberately NOT an auto-pin of the eval scale. Which trajectory to measure is the
+    user's choice and this code does not make it (owner, 2026-09-02); pinning stays explicit
+    via ``--cfg.eval-override-scale``. What this does is make the DEFAULT honest, so the
+    off-scale warning in ``open_loop_viewpoints`` compares against the scale the model was
+    really trained at rather than a config default of 1.0.
+
+    Only touches fields still at their dataclass default — anything typed on the command
+    line wins, always. Returns what it adopted, for the record.
+    """
+    from canvit_train.checkpoint.to_hf import read_pretraining_provenance
+    from canvit_train.harness.config import FoveatedScaleConfig
+
+    view_scale, teacher_name = read_pretraining_provenance(payload, source=source)
+    adopted: list[str] = []
+
+    fs = getattr(cfg, "foveated_scale", None)
+    if fs is not None and view_scale is not None and fs == FoveatedScaleConfig():
+        for field in ("mode", "distribution", "fixed_scale", "min_scale", "max_scale"):
+            if view_scale.get(field) is not None:
+                setattr(fs, field, view_scale[field])
+        adopted.append(f"foveated_scale={view_scale['mode']}/{view_scale['fixed_scale']}")
+        log.info("adopted the checkpoint's pretraining view scale: %s. Pass "
+                 "--cfg.foveated-scale.* to override.", view_scale)
+
+    default_teacher = type(cfg).__dataclass_fields__.get("teacher_name")
+    if (default_teacher is not None and teacher_name
+            and cfg.teacher_name == default_teacher.default
+            and teacher_name != cfg.teacher_name):
+        cfg.teacher_name = teacher_name
+        adopted.append(f"teacher_name={teacher_name}")
+        log.info("adopted the checkpoint's teacher_name=%s (picks the teacher and the IN1k "
+                 "probe via distill/probe.py::PROBE_REGISTRY)", teacher_name)
+    return adopted
+
+
 def evaluate(task: Any, cfg: Any, opts: EvalOpts, *, task_name: str) -> dict[str, Any]:
     """Evaluate one checkpoint under one protocol; return the record that gets written.
 
@@ -109,6 +152,7 @@ def evaluate(task: Any, cfg: Any, opts: EvalOpts, *, task_name: str) -> dict[str
     device = torch.device(opts.device if torch.cuda.is_available() else "cpu")
 
     payload = torch.load(opts.ckpt, weights_only=False, map_location=device)
+    adopted = adopt_checkpoint_provenance(cfg, payload, source=opts.ckpt)
     # distill rebuilds its architecture FROM the checkpoint (build_model's resume path);
     # ade20k/in1k rebuild from cfg.model_repo and ignore this.
     model, head = task.build_model(device, prior_model_config=payload.get("model_config"))
@@ -119,6 +163,7 @@ def evaluate(task: Any, cfg: Any, opts: EvalOpts, *, task_name: str) -> dict[str
     assert val_loader is not None, f"{task_name} has no val loader for this config"
     is_foveated = task.is_foveated(model)
     protocol = _resolved_protocol(cfg, task_name, is_foveated)
+    protocol["adopted_from_checkpoint"] = adopted
     log.info("evaluating %s under %s", opts.ckpt, protocol)
 
     step = int(payload.get("step", 0))

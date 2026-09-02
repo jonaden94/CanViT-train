@@ -256,6 +256,13 @@ class DistillRunTask:
     def canvas_grid(self, model):
         return self.cfg.canvas_patch_grid_size
 
+    metrics_prefix = "val"
+    """Tracker namespace for what ``evaluate`` returns. distill's per-timestep series have
+    been ``val/scene_cos_*`` since the old loop, and ``validate`` used to log them itself;
+    now that it RETURNS them (F8) the caller must keep the same namespace or every exp22-exp32
+    dashboard breaks. ade20k/in1k have no attribute here and take the harness default,
+    ``eval/``, which is what they have always used."""
+
     def is_foveated(self, model):
         return getattr(model.cfg, "patcher_name", "uniform") in ("foveated", "square")
 
@@ -576,7 +583,7 @@ class DistillRunTask:
             if self._probe is None:  # IN1k linear probe on the teacher's features
                 self._probe = load_probe(self.cfg.teacher_name, device)
             with amp:
-                metric = validate(
+                series = validate(
                     exp=exp, step=step, model=model, compute_raw_targets=compute_raw_targets,
                     scene_normalizer=self.scene_norm, cls_normalizer=self.cls_norm,
                     val_batches=val_loader.batches(), device=device,
@@ -604,7 +611,12 @@ class DistillRunTask:
                     teacher=teacher, log_spatial_stats=self.cfg.log_spatial_stats,
                     teacher_name=self.cfg.teacher_name,
                 )
-            return {"val_metric": float(metric)}
+            # `val_metric` is kept as an alias of scene_cos_raw_t{last} -- it is the key
+            # exp22-exp36 logged and the one the loop's log line reads. The rest of the
+            # series now comes back too, so a standalone evaluation sees more than one
+            # scalar (eval-merge doc §5, F8).
+            return {"val_metric": float(series["scene_cos_raw"]),
+                    **{k: float(v) for k, v in series.items()}}
         except Exception as e:  # eval is a readout; never let it kill training
             import logging
             logging.getLogger(__name__).warning("distill evaluate() skipped: %s", e, exc_info=True)
