@@ -132,6 +132,13 @@ class Ade20kConfig:
     Set this to the pretraining view scale to evaluate "C2F's fixation sequence at the
     model's own scale" instead. Leave unset for uniform backbones, where the quadtree's
     scales are the point."""
+    per_row_iou_out: Path | None = None
+    """Also write per-(image, class, timestep) IoU COUNTS to this parquet path.
+
+    A dataset mIoU says how good the model is; these rows say on WHICH images and classes,
+    and how that moves as glimpses accumulate — the question a glimpse policy is actually
+    about, and one an aggregate cannot answer. Costs one scatter-add per batch and no extra
+    forward. ``None`` (default) = off, and the eval is unchanged."""
     eval_policy: EvalPolicy = "auto"
     """Validation trajectory. ``"auto"`` = this task's historical one, IID random from a
     full-scene anchor — inherited from the specialize probe, which TRAINED on random

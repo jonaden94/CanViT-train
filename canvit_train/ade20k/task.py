@@ -398,6 +398,9 @@ class Ade20kRunTask:
         was_training = model.head.training
         model.head.eval()
         ious = [mIoUAccumulator(NUM_CLASSES, IGNORE_LABEL, device) for _ in range(T)]
+        # Optional per-(image, class, timestep) counts, riding the preds the accumulator
+        # already computes (see per_row_iou.py). Off by default; nothing below runs then.
+        rows: list[list] | None = [[] for _ in range(T)] if self.cfg.per_row_iou_out else None
         # CE is accumulated ONLY for a deployed policy: it is the qband selection metric
         # (see best_metric), and it needs full-resolution logits, which for B x 150 x 512
         # x 512 is a multi-GB tensor the mIoU path never materializes (it upsamples the
@@ -429,7 +432,10 @@ class Ade20kRunTask:
                     hidden = rollout_canvas_hidden(seg=model, images=vi, viewpoints=vps,
                                                    canvas_grid=cg, glimpse_px=self.cfg.glimpse_px)
             for t in range(T):
-                eval_probe_on_batch(model.head, hidden[t], vm, ious[t])
+                preds = eval_probe_on_batch(model.head, hidden[t], vm, ious[t])
+                if rows is not None:
+                    from canvit_train.ade20k.per_row_iou import batch_confusion
+                    rows[t].append([x.cpu() for x in batch_confusion(preds, vm, NUM_CLASSES)])
                 if eval_policy == "policy":
                     ce_sums[t] += self._full_res_ce(model.head, hidden[t], vm).sum().item()
             if eval_policy == "policy":
@@ -437,6 +443,19 @@ class Ade20kRunTask:
             if do_viz:  # first batch only
                 do_viz = False
                 self._render_val_viz(model.head, hidden, vi, vm, run_dir, step)
+        if rows is not None:
+            import torch as _torch
+
+            from canvit_train.ade20k.per_row_iou import write_rows
+            # rows[t] is a list over BATCHES of [inter, union, gt_area], each [B, C], and
+            # the last batch is ragged (2000 val images, batch 32) -- so concatenate along
+            # the image axis, then stack the timesteps: [T, N, C] for each of the three.
+            stacked = [_torch.stack([_torch.cat([b[i] for b in rows[t]]) for t in range(T)])
+                       for i in range(3)]
+            write_rows(self.cfg.per_row_iou_out, *stacked,
+                       mask_resolution_px=self.cfg.scene_size,
+                       resize_mode=self.cfg.resize_mode,
+                       extra={"step": step, "eval_policy": eval_policy, "n_timesteps": T})
         mious = [m.compute() for m in ious]
         if was_training:
             model.head.train()

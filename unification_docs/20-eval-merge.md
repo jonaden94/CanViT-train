@@ -805,7 +805,32 @@ canvas_hidden`, i.e. trained on CanViT CANVAS features; DINOv3-B/16 patches are 
 *real* baseline number needs a probe trained on teacher features that nobody here has
 published. The capability is ported and correct; the artifact to feed it does not exist yet.
 
-**Still to do in this stage:** the per-row IoU output.
+**4c — per-row IoU, done 2026-09-02.** `--cfg.per-row-iou-out <path.parquet>` on the ade20k
+eval writes one row per (timestep, image, class) with raw `inter_px` / `union_px` /
+`gt_area_px`. A dataset mIoU says how good the model is; these say on WHICH images and
+classes, and how that moves as glimpses accumulate — the question a glimpse policy is
+actually about, and one an aggregate cannot answer.
+
+Only the METRIC was ported, as §3 decided — `ade20k_obj`'s three-stage cached-feature
+pipeline stays behind. The rows ride the predictions `eval_probe_on_batch` already computes
+(it now returns them instead of discarding them), so the cost is one scatter-add per batch
+and no extra forward. Off by default. Parquet via **pyarrow**, a real dependency here;
+canvit_eval used pandas, which sits in its *dev* group while `ade20k_obj/iou.py` imports it
+at module level — so that task only ever ran in a dev install.
+
+Counts are stored, never a per-row ratio: `inter/union` is undefined for a class absent from
+an image, and averaging per-image ratios is not the dataset mIoU.
+
+**Gate — PASSED.** On exp34's probe the rows aggregate to the accumulator's `miou_t{t}` at
+**all ten timesteps to ≤1.1e-16**, i.e. summation order only. Plus a `np.bincount` reference
+test for the scatter-add itself — which is `canvit_eval/tests/test_iou_equivalence.py`, so
+Stage 5 has one less item. 360 tests, four bit-identity rows unmoved (`eval_probe_on_batch`
+is in the numeric path, so that mattered).
+
+Writing it surfaced one real defect in the port: `miou_from_rows` summed float32 counts and
+drifted ~1e-9 from the accumulator. Counts are integers; it sums in float64 now.
+
+**Stage 4 is complete.**
 
 ### Stage 4 (original text, for the record) — The eval-only capabilities
 

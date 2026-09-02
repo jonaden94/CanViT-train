@@ -92,10 +92,18 @@ def reward_ce(logits: Tensor, masks: Tensor, *, score_res: int | None) -> Tensor
     return per_image_ce(up, m, ignore_label=IGNORE_LABEL).float()
 
 
-def eval_probe_on_batch(probe: nn.Module, features: Tensor, masks: Tensor, iou: mIoUAccumulator) -> None:
-    """Forward probe, upsample logits to mask resolution, argmax, update IoU."""
+def eval_probe_on_batch(probe: nn.Module, features: Tensor, masks: Tensor,
+                        iou: mIoUAccumulator) -> Tensor:
+    """Forward probe, upsample logits to mask resolution, argmax, update IoU.
+
+    Returns the full-resolution predictions. The per-row IoU output needs exactly these and
+    they were being discarded, so returning them is what keeps that an extra scatter-add
+    rather than an extra forward. Existing callers ignore the value.
+    """
     logits = probe(features.float())
-    iou.update(preds_from_logits(logits, masks.shape[1], masks.shape[2]), masks)
+    preds = preds_from_logits(logits, masks.shape[1], masks.shape[2])
+    iou.update(preds, masks)
+    return preds
 
 
 @dataclass
