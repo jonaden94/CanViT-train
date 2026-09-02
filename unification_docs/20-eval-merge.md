@@ -560,17 +560,29 @@ in training and Y standalone.
 F3 forced the question "what does `--policy random` mean" and the answer is that `random`
 was never one thing. It bundles independent choices. Decompose them:
 
-| axis | values |
-|---|---|
-| `center` | `safebox` (coupled to scale, no overshoot) · `frame` (uniform over [-1,1]^2) · `quadtree` · `fixation_grid` (fixed 3x3 sequence) · `constant` |
-| `scale` | `pin:<v>` · `safebox` (p(s) ~ 1-s) · `quadtree` (1.0, 0.5, 0.25, ...) · `constant:1.0` |
-| `t0` | `center_anchor` · `random` · `same_as_rest` |
-| `order` | `coarse_to_fine` · `fine_to_coarse` (quadtree centers only) |
+**Corrected 2026-09-02, after reading the generators.** The first draft of this section
+listed `center` and `scale` as independent axes. They are not: `random_viewpoints` draws
+`centers = rand * (1 - scale)`, i.e. the safe-box center law is a JOINT distribution over
+(center, scale), and the quadtree's centers and scales both come off the same tree. A
+four-axis table looks tidier and lies. What is actually there:
 
-They really are independent: canvit_eval's safebox CENTERS with the scale pinned to 2.0 is a
-coherent, useful measurement on a foveated model — measured in Stage 0, and it tracks
-canvit_train's foveated `random` to ~1e-3 from t1 on. `eval_override_scale` stops being a
-special case and becomes the `scale` axis, overridden.
+| | what it is | values |
+|---|---|---|
+| **preset** | the joint (center, scale) trajectory — the thing that has a name and a published number | `coarse_to_fine` · `fine_to_coarse` · `random` · `full` · `fixation_grid` · `entropy_coarse_to_fine` · `policy` |
+| `t0` | whether the run opens on the full-scene anchor, where that is not already the trajectory's own first element | `full_anchor` · `trajectory` · unset |
+| `order` | quadtree only | coarse→fine · fine→coarse (exposed as two presets) |
+| `override_scale` | post-hoc pin of every scale, keeping the generated CENTERS | float · unset |
+
+`override_scale` is a **modifier, not an axis**: it replaces scales that were already drawn,
+so canvit_eval's `random`+pin is "safe-box centers at their natural scales, then re-scaled" —
+a coherent and useful measurement (Stage 0 tracked it against canvit_train's foveated
+`random` to ~1e-3 from t1 on), but not "safe-box centers designed for scale 2.0". Saying so
+matters: a reader who believes the axes are independent will over-trust an exotic combination.
+
+So the surface is **the preset names people already use, plus three modifiers** — no new
+vocabulary, no rename of the flags in ~50 launchers, and every historical protocol still
+named by one word. `eval_override_scale` stops being ade20k-only (F4) and becomes the
+modifier on all three tasks.
 
 **Presets stay the primary interface.** `--eval-policy <name>` expands to an axis tuple;
 any axis is individually overridable on top. The named presets are exactly the trajectories
