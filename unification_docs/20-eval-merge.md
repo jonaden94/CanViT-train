@@ -500,11 +500,21 @@ warned about this and it happened anyway.
 * 325 tests (313 + 12 new: 5 on the metadata block, 7 on the warning).
 * All four Stage-0 **(GATE)** rows still **bit-identical** — the warning sits in the numeric
   path, so this is not a formality.
-* **The footgun is measurably closed, and the two repos agree exactly.** Re-export exp33's
-  finetune and ask canvit_eval for one glimpse with no scale argument: it auto-resolves 2.0
-  from the new metadata and scores **top1 0.81258 / top5 0.95806** — identical, to
-  `+0.00e+00` on both, to canvit_train's `fixation_grid` at T=1. Before the fix the same
-  command ran unpinned at **0.72580**. The metadata block alone is worth **+0.087 top1**.
+* **The two repos now agree exactly on the same measurement.** Re-export exp33's finetune
+  and ask canvit_eval for one glimpse with no scale argument: it auto-resolves 2.0 from the
+  new metadata and reports **top1 0.81258 / top5 0.95806** — identical, to `+0.00e+00` on
+  both, to canvit_train's `fixation_grid` at T=1. Before the fix the same command reported
+  **0.72580**.
+
+  **That 0.087 is a measurement error, not a gain.** The weights are byte-identical either
+  way. 0.72580 was not a measurement of this model at all — it was a measurement of the
+  MISMATCH between the model and glimpses at a scale it never trained on, a question nobody
+  asked. It is quoted here only as evidence that the missing metadata block was a real
+  defect rather than a cosmetic one; a 0.087 discrepancy is hard to wave away. Nothing in
+  this stage makes any model better, and the direction of the change is not the point:
+  measuring off-scale degradation deliberately is a legitimate experiment, which is exactly
+  why the off-scale case WARNS rather than refuses. The goal is that an eval measures what
+  was asked for and records what it did — never that its numbers come out high.
 
 **Still open, deliberately:** existing published HF directories do not gain the field
 retroactively — they need re-exporting. Nothing in flight depends on one (exp36 pins its own
