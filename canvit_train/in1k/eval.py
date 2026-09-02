@@ -75,6 +75,7 @@ def evaluate(clf, cfg: In1kConfig, val_loader, *, device, canvas_grid, amp_ctx, 
                 is_foveated=is_foveated, foveated_scale=cfg.foveated_scale,
                 min_scale=cfg.min_vp_scale, max_scale=cfg.max_vp_scale,
                 foveated_eval_scale=getattr(cfg.foveated_scale, "fixed_scale", 1.0),
+                override_scale=cfg.eval_override_scale,
             )
             with amp_ctx:
                 cls_tokens = rollout_cls_tokens(

@@ -590,6 +590,7 @@ class DistillRunTask:
                     # "auto" (the default) reproduces this task's historical choice
                     # exactly: C2F for uniform, fixation_grid for foveated/square.
                     eval_policy=self.cfg.eval_policy, foveated_scale=fs, joint=joint,
+                    override_scale=self.cfg.eval_override_scale,
                     prefix="val", probe=self._probe,
                     log_curves=(val_count % max(1, self.cfg.curve_every_n_vals) == 0),
                     log_pca=(val_count % max(1, self.cfg.viz_every_n_vals) == 0),

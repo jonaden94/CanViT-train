@@ -39,11 +39,30 @@ log = logging.getLogger(__name__)
 if TYPE_CHECKING:  # the task configs import EvalPolicy from here, so stay dependency-light
     from canvit_train.harness.config import FoveatedScaleConfig
 
-EvalPolicy = Literal["auto", "coarse_to_fine", "random", "full", "fixation_grid",
-                     "entropy_coarse_to_fine", "policy"]
+EvalPolicy = Literal["auto", "coarse_to_fine", "fine_to_coarse", "random", "full",
+                     "fixation_grid", "entropy_coarse_to_fine", "policy"]
 
-OPEN_LOOP: tuple[str, ...] = ("coarse_to_fine", "random", "full", "fixation_grid")
-"""Policies whose whole trajectory is known before the rollout starts."""
+OPEN_LOOP: tuple[str, ...] = ("coarse_to_fine", "fine_to_coarse", "random", "full",
+                              "fixation_grid")
+"""Policies whose whole trajectory is known before the rollout starts.
+
+Each name is a PRESET: one joint (center, scale) trajectory that has a published number
+somewhere. They are not composable axes — the safe-box law draws
+``centers = rand * (1 - scale)`` and the quadtree takes both off one tree, so center and
+scale are jointly generated (eval-merge doc §5, Stage 3). What IS composable on top:
+``t0``, and ``override_scale``."""
+
+T0Anchor = Literal["full_anchor", "trajectory"]
+"""Whether the episode opens on the full-scene anchor. ``None`` (the default everywhere)
+means "whatever this preset always did", so it is a no-op unless set.
+
+Only ``random`` and ``fine_to_coarse`` have a choice here: the quadtree's level 0 IS the
+full scene, and ``fixation_grid`` / ``full`` open on their own first element. Setting it
+for those would be a flag that does nothing, so they raise instead — see
+``_resolve_t0``. This is the knob that separates canvit_train's ``random`` (anchored)
+from canvit_eval's (not), a 0.0205 difference at t0 (F3)."""
+
+_T0_APPLIES: tuple[str, ...] = ("random", "fine_to_coarse")
 
 CLOSED_LOOP: tuple[str, ...] = ("policy", "entropy_coarse_to_fine")
 """Policies that need the live canvas state to pick the next glimpse, so their
@@ -201,6 +220,24 @@ def _check_scale_in_distribution(
     _warn_off_scale(policy, float(trained), got)
 
 
+def _resolve_t0(policy: str, t0: T0Anchor | None) -> bool:
+    """``start_with_full_scene`` for ``policy``. Unset => the preset's own historical value.
+
+    An explicit value on a preset that cannot honour it is a HARD ERROR, not a warning: the
+    request would otherwise be silently dropped and the caller would read the resulting
+    number as having come from the config they typed (eval-merge doc §5, Stage 3).
+    """
+    if t0 is None:
+        return True   # every preset here has historically opened on the full scene
+    if policy not in _T0_APPLIES:
+        raise ValueError(
+            f"t0={t0!r} does not apply to eval_policy={policy!r}: its first glimpse IS its "
+            f"own trajectory's first element (the quadtree's level 0 is the full scene; "
+            f"fixation_grid opens on the centre fixation; full is the full scene). Passing "
+            f"it would be silently ignored. It applies to {list(_T0_APPLIES)}.")
+    return t0 == "full_anchor"
+
+
 def open_loop_viewpoints(
     policy: str,
     *,
@@ -213,6 +250,7 @@ def open_loop_viewpoints(
     max_scale: float = 1.0,
     foveated_eval_scale: float = 1.0,
     override_scale: float | None = None,
+    t0: T0Anchor | None = None,
 ) -> list[Viewpoint]:
     """The precomputed trajectory for every policy except ``"policy"``.
 
@@ -232,7 +270,7 @@ def open_loop_viewpoints(
     ``HISTORICAL_DEFAULTS["in1k"]`` sends foveated runs to C2F unpinned on purpose (see
     that table's notes), and silently pinning would make exp25/exp29 non-comparable.
     """
-    from canvit_pytorch.policies import repeated_full_scene
+    from canvit_pytorch.policies import fine_to_coarse_viewpoints, repeated_full_scene
 
     from canvit_train.harness.rollout.viewpoint import make_eval_viewpoints, make_eval_viewpoints_foveated
 
@@ -250,8 +288,18 @@ def open_loop_viewpoints(
                                      foveated_scale=foveated_scale)
         return vps
 
+    anchor = _resolve_t0(policy, t0)
+
     if policy == "coarse_to_fine":
         return _out(make_eval_viewpoints(batch_size, device, n_viewpoints=n))
+    if policy == "fine_to_coarse":
+        # The quadtree walked the other way: finest level first, full scene last. Core has
+        # had the generator all along; this repo simply never exposed it.
+        vps = fine_to_coarse_viewpoints(batch_size, device, n)
+        if anchor:
+            vps = [Viewpoint(centers=torch.zeros(batch_size, 2, device=device),
+                             scales=torch.ones(batch_size, device=device))] + vps[:-1]
+        return _out(vps)
     if policy == "fixation_grid":
         return _out(make_eval_viewpoints_foveated(batch_size, device, n_viewpoints=n,
                                                  scale=foveated_eval_scale))
@@ -268,7 +316,7 @@ def open_loop_viewpoints(
             "foveated_scale; defaulting it would put every glimpse out of distribution.")
         return _out(make_random_viewpoints(
             batch_size, device, n, min_scale=min_scale, max_scale=max_scale,
-            start_with_full_scene=True, is_foveated=is_foveated,
+            start_with_full_scene=anchor, is_foveated=is_foveated,
             foveated_scale=foveated_scale or FoveatedScaleConfig(),
         ))
     if policy in CLOSED_LOOP:

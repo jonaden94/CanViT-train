@@ -139,6 +139,17 @@ class Config:
     log_every: int = 20
     val_every: int = 1000
     n_eval_viewpoints: int = 10  # Number of viewpoints in validation
+    eval_override_scale: float | None = None
+    """Pin every eval glimpse to this scale while keeping the policy's CENTERS. Mirrors
+    ``canvit_eval``'s ``EpisodeConfig.override_scale``, and ``Ade20kConfig``'s field of the
+    same name — one knob on all three tasks, each keeping its own default (F4). ``None``
+    (default) = off, an exact no-op.
+
+    For a FIXED-SCALE FOVEATED backbone under a scale-varying policy: ``fix_size = scale * H``,
+    so a glimpse at a scale the model never trained on is out of distribution and the metric
+    decays as glimpses accumulate. Set this to the pretraining view scale to measure "that
+    policy's centres at the model's own scale" instead. Leave unset for uniform backbones,
+    whose out-of-distribution axis is the glimpse crop in pixels, not the view scale."""
     eval_policy: EvalPolicy = "auto"
     """Validation trajectory — the SHARED option set (harness/eval_viewpoints.py), the
     same one ade20k and in1k take. ``"auto"`` = this task's historical, PATCHER-DEPENDENT

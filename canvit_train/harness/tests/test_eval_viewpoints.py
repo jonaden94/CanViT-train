@@ -302,3 +302,74 @@ def test_sampled_scale_modes_never_warn(caplog):
     with caplog.at_level("WARNING"):
         _emit("coarse_to_fine", fs=FoveatedScaleConfig(mode="per_glimpse"))
     assert "OUT OF DISTRIBUTION" not in caplog.text
+
+
+# --- the newly exposed preset and the t0 modifier -----------------------------
+# Stage 3 exposes `fine_to_coarse` (core has had the generator all along; this repo never
+# surfaced it) and adds `t0`, the knob that separates canvit_train's `random` from
+# canvit_eval's — a 0.0205 difference at t0 measured in Stage 0 (F3). Both randoms are
+# legitimate; what is not legitimate is one flag meaning two things.
+
+def test_fine_to_coarse_walks_the_quadtree_the_other_way():
+    """Coarsest-last: the last glimpse of an unanchored f2c is the full scene, which is the
+    first glimpse of c2f. If these ever come out the same, the reversal was lost."""
+    torch.manual_seed(0)
+    f2c = open_loop_viewpoints("fine_to_coarse", batch_size=_B, device=_DEV, n=5,
+                               is_foveated=False, foveated_scale=_FS, t0="trajectory")
+    assert f2c[-1].scales[0].item() == pytest.approx(1.0)   # ends full
+    assert f2c[0].scales[0].item() < 1.0                    # starts fine
+    torch.manual_seed(0)
+    c2f = open_loop_viewpoints("coarse_to_fine", batch_size=_B, device=_DEV, n=5,
+                               is_foveated=False, foveated_scale=_FS)
+    assert not torch.equal(f2c[0].scales, c2f[0].scales)
+
+
+def test_t0_full_anchor_prepends_the_full_scene():
+    for policy in ("random", "fine_to_coarse"):
+        torch.manual_seed(0)
+        anchored = open_loop_viewpoints(policy, batch_size=_B, device=_DEV, n=5,
+                                        is_foveated=False, foveated_scale=_FS,
+                                        t0="full_anchor")
+        torch.manual_seed(0)
+        bare = open_loop_viewpoints(policy, batch_size=_B, device=_DEV, n=5,
+                                    is_foveated=False, foveated_scale=_FS, t0="trajectory")
+        assert anchored[0].scales[0].item() == pytest.approx(1.0), policy
+        assert len(anchored) == len(bare) == 5, policy
+        assert not torch.equal(anchored[1].centers, bare[1].centers), policy
+
+
+def test_unset_t0_is_an_exact_no_op_for_every_preset():
+    """The whole point: adding the knob must not move a single existing number. Compares the
+    default (unset) against the value each preset historically used."""
+    for policy in OPEN_LOOP:
+        torch.manual_seed(0)
+        default = open_loop_viewpoints(policy, batch_size=_B, device=_DEV, n=5,
+                                       is_foveated=False, foveated_scale=_FS)
+        torch.manual_seed(0)
+        explicit = open_loop_viewpoints(
+            policy, batch_size=_B, device=_DEV, n=5, is_foveated=False, foveated_scale=_FS,
+            **({"t0": "full_anchor"} if policy in ("random", "fine_to_coarse") else {}))
+        assert len(default) == len(explicit), policy
+        for a, b in zip(default, explicit):
+            assert torch.equal(a.centers, b.centers) and torch.equal(a.scales, b.scales), policy
+
+
+@pytest.mark.parametrize("policy", ["coarse_to_fine", "full", "fixation_grid"])
+def test_t0_on_a_preset_that_cannot_honour_it_is_a_hard_error(policy):
+    """Silently dropping the flag would hand back a number the caller reads as having come
+    from the config they typed. Errors name the flag and the presets it applies to."""
+    with pytest.raises(ValueError, match="does not apply"):
+        open_loop_viewpoints(policy, batch_size=_B, device=_DEV, n=5, is_foveated=False,
+                             foveated_scale=_FS, t0="trajectory")
+
+
+def test_override_scale_is_now_a_field_on_all_three_tasks():
+    """F4: it was ade20k-only, and in1k is precisely the task whose historical default is
+    the off-scale one. Same knob, each task keeping its own default (None = off)."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.distill.config import Config as DistillConfig
+    from canvit_train.in1k.config import In1kConfig
+
+    for cfg in (Ade20kConfig, DistillConfig, In1kConfig):
+        assert "eval_override_scale" in cfg.__dataclass_fields__, cfg.__name__
+        assert cfg.__dataclass_fields__["eval_override_scale"].default is None, cfg.__name__

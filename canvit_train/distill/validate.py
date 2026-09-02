@@ -187,6 +187,7 @@ def validate(
     min_viewpoint_scale: float = 0.05,
     foveated_eval_scale: float = 1.0,
     eval_policy: str = "auto",
+    override_scale: float | None = None,
     foveated_scale: Any = None,
     joint: Any = None,
     prefix: str = "val",
@@ -236,6 +237,7 @@ def validate(
                 policy, batch_size=B, device=images.device, n=n_eval_viewpoints,
                 is_foveated=is_foveated, foveated_scale=foveated_scale,
                 min_scale=min_viewpoint_scale, foveated_eval_scale=foveated_eval_scale,
+                override_scale=override_scale,
             )
         has_probe = probe is not None and labels is not None and labels_are_in1k(labels)
 

@@ -101,6 +101,17 @@ class In1kConfig:
     # same one distill and ade20k take. "auto" = this task's historical trajectory,
     # coarse-to-fine (the canvit_eval deploy default), for uniform AND foveated alike.
     # See HISTORICAL_DEFAULTS on why foveated keeps C2F despite the scale mismatch.
+    eval_override_scale: float | None = None
+    """Pin every eval glimpse to this scale while keeping the policy's CENTERS. Mirrors
+    ``canvit_eval``'s ``EpisodeConfig.override_scale``, and ``Ade20kConfig``'s field of the
+    same name — one knob on all three tasks, each keeping its own default (F4). ``None``
+    (default) = off, an exact no-op.
+
+    For a FIXED-SCALE FOVEATED backbone under a scale-varying policy: ``fix_size = scale * H``,
+    so a glimpse at a scale the model never trained on is out of distribution and the metric
+    decays as glimpses accumulate. Set this to the pretraining view scale to measure "that
+    policy's centres at the model's own scale" instead. Leave unset for uniform backbones,
+    whose out-of-distribution axis is the glimpse crop in pixels, not the view scale."""
     eval_policy: EvalPolicy = "auto"
 
     # Training (step-based, like Ade20kConfig). Train uses the SAME resumable, shard-
