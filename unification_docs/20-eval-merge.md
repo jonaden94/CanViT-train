@@ -710,7 +710,60 @@ in-distribution only with an explicit pin.
 checkpoint, policy, glimpse count and val subset — on ONE machine (F1), under a
 deterministic policy (F2).
 
-### Stage 4 — The eval-only capabilities
+### Stage 4 — The eval-only capabilities — 4a (reconstruction) EXECUTED 2026-09-02
+
+**Reconstruction was not ported, and must not be: canvit_eval's version is WRONG.**
+
+The plan called for "reconstruction as ONE implementation with two entry points", treating
+it as the canary for whether the refactor is working. It caught something. The two
+implementations do not compute the same quantity under the name `scene_cos_raw`:
+
+| | what it compares |
+|---|---|
+| `distill/validate.py` | `cos(scene_normalizer.destandardize(pred), raw_teacher)` |
+| `canvit_eval/tasks/reconstruction.py` | `cos(pred, raw_teacher)` — no destandardize anywhere in the file |
+
+Measured on exp32-fovi step-1916928, one batch of 64 at t9
+(`stage0_baseline/recon_diff.py`):
+
+```
+scene_cos_raw  canvit_eval (no destandardize) = 0.647881
+scene_cos_raw  canvit_train (destandardized)  = 0.926994   difference +0.279
+scene_cos_norm (identical in both)            = 0.857282
+```
+
+**distill's is correct.** The distill training target is `scene_norm(raw_patches)` and the
+MSE loss compares `scene_pred` against it, so `predict_teacher_scene` outputs in NORMALIZED
+space; comparing it to raw teacher features without destandardizing is dimensionally
+inconsistent, and the cosine is then dominated by the per-channel mean offset. The
+`*_cos_norm` series compare like with like and agree in both repos — only the `*_cos_raw`
+pair diverges, which is the tell.
+
+So any `scene_cos_raw` / `cls_cos_raw` published from canvit_eval's reconstruction task is
+understated. `*_cos_norm` from it is fine.
+
+**What actually shipped.** Nothing was ported: after F8 made `validate` return its series,
+`python -m canvit_train.harness.evaluate distill` IS the reconstruction task, in its correct
+form. The only capability canvit_eval had that distill validation lacked was the image
+SOURCE — its `ImageDirDataset` rglobs an arbitrary folder, whereas `IndexedImageFolder`
+needs class subdirectories and ADE20K's val images are flat. So `--cfg.val-image-dir` was
+added, with `FlatImageDir` (recursive, filename-sorted, label `-1`).
+
+That `-1` exposed a second defect: `labels_are_in1k` checked only the UPPER bound (it was
+written to tell IN1k from IN21k), so `-1` passed and the IN1k probe readout would have
+reported an accuracy against garbage labels instead of being skipped. Now bounded both ends.
+
+Verified end to end — reconstruction on ADE20K val images, scale adopted from the
+checkpoint, IN1k readout correctly absent (`stage0_baseline/stage4_recon_ade20k.json`):
+`scene_cos_raw` 0.887 → 0.918 across t0→t9, below the 0.926 it reaches on ImageNet val,
+which is the domain shift one would expect.
+
+**Gate — PASSED.** 351 tests, four standalone rows still bit-identical.
+
+**Still to do in this stage:** `ade20k-seg-dinov3` (the teacher baseline) and the per-row
+IoU output.
+
+### Stage 4 (original text, for the record) — The eval-only capabilities
 
 `reconstruction` as a **single** implementation with two entry points (distill validation
 already computes cosine-to-teacher; two implementations would recreate the duplication this

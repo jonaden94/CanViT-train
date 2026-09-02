@@ -173,3 +173,63 @@ def test_bind_uses_precomputed_targets_when_present(monkeypatch, tmp_path):
     bound = t.bind((torch.randn(_BS, 3, 8, 8), patches, cls, None), torch.device("cpu"),
                    model=None, head=None)
     assert torch.allclose(bound.distill.scene_target, patches)  # NOT recomputed
+
+
+# --- reconstruction on a label-free image directory --------------------------
+# The one capability canvit_eval's `reconstruction` task had that distill validation did
+# not: an arbitrary image folder as the val source. The cosine series it computed is what
+# `validate` already returns -- and canvit_eval's `scene_cos_raw` was WRONG, comparing a
+# normalized-space prediction against raw teacher features (measured 0.648 vs 0.927 at t9
+# on exp32-fovi). So this is the capability ported, not the task (eval-merge doc §5, Stage 4).
+
+def _png(path, colour=(10, 20, 30)):
+    from PIL import Image
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (8, 8), colour).save(path)
+
+
+def test_flat_image_dir_recurses_and_sorts_by_filename(tmp_path):
+    """rglob so a flat folder (ADE20K val) and a nested tree both work; sorted by FILENAME
+    so the order does not depend on the directory layout."""
+    from canvit_train.distill.data import FlatImageDir
+
+    _png(tmp_path / "b.png")
+    _png(tmp_path / "nested" / "a.png")
+    _png(tmp_path / "c.jpg")
+    (tmp_path / "notes.bak").write_text("not an image")
+    ds = FlatImageDir(tmp_path, transform=lambda im: torch.zeros(3, 8, 8))
+    assert [p.name for p in ds.paths] == ["a.png", "b.png", "c.jpg"]
+
+
+def test_flat_image_dir_labels_disable_the_in1k_readout(tmp_path):
+    """-1 is the signal. It used to pass `labels_are_in1k`, which only checked the UPPER
+    bound, so the probe readout would have reported an accuracy against garbage labels."""
+    from canvit_train.distill.data import FlatImageDir
+    from canvit_train.distill.probe import labels_are_in1k
+
+    _png(tmp_path / "a.png")
+    ds = FlatImageDir(tmp_path, transform=lambda im: torch.zeros(3, 8, 8))
+    _, label = ds[0]
+    assert label == -1
+    assert not labels_are_in1k(torch.tensor([label]))
+
+
+def test_labels_are_in1k_bounds():
+    from canvit_train.distill.probe import labels_are_in1k
+
+    assert labels_are_in1k(torch.tensor([0, 999]))
+    assert not labels_are_in1k(torch.tensor([1000]))   # IN21k, the original purpose
+    assert not labels_are_in1k(torch.tensor([-1]))     # no labels at all
+
+
+def test_val_image_dir_selects_the_flat_loader(tmp_path):
+    from canvit_train.distill.data import create_imagefolder_val_loader
+
+    for i in range(3):
+        _png(tmp_path / f"img{i}.png")
+    cfg = Config(val_image_dir=tmp_path, webdataset_dir=tmp_path, tracker="none",
+                 num_workers=0, batch_size_per_gpu=2)
+    loader = create_imagefolder_val_loader(cfg)
+    assert loader.n_samples == 3, "no class subdirectories needed, unlike val_dir"
+    images, labels = next(iter(loader.batches()))
+    assert images.shape[0] == 2 and labels.tolist() == [-1, -1]

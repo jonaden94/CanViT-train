@@ -54,8 +54,16 @@ def get_probe_resolution(teacher_name: str) -> int:
 
 
 def labels_are_in1k(labels: Tensor) -> bool:
-    """Check if labels are from IN1k (< 1000) vs IN21k (>= 1000)."""
-    return int(labels.max().item()) < IN1K_NUM_CLASSES
+    """Are these IN1k class labels? ``0 <= label < 1000``.
+
+    The upper bound distinguishes IN1k from IN21k, which is what this was written for. The
+    lower bound was added 2026-09-02 for a second caller: a LABEL-FREE image directory
+    (``FlatImageDir``, reconstruction on ADE20K images) yields ``-1``, which passed the
+    upper-bound test and would have run the IN1k probe readout against garbage — reporting
+    an accuracy rather than skipping the readout. A negative index is not an IN1k label
+    under any reading, so the guard belongs here rather than in each caller.
+    """
+    return 0 <= int(labels.min().item()) and int(labels.max().item()) < IN1K_NUM_CLASSES
 
 
 def compute_in1k_top1(logits: Tensor, labels: Tensor) -> float:

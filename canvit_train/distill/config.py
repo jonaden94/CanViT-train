@@ -69,6 +69,19 @@ class Config:
     train_index_dir: Path | None = None
     """Fallback source for ``val_index_dir`` when that is unset — despite the name this
     feeds VALIDATION's parquet index, not training (training reads WebDataset shards)."""
+    val_image_dir: Path | None = None
+    """Evaluate reconstruction on an arbitrary, LABEL-FREE image directory instead of the
+    ImageNet-1k val ImageFolder (``val_dir``). Recursive and filename-sorted, so a flat
+    folder (ADE20K's ``images/validation``) and a nested one both work.
+
+    This is what ``canvit_eval``'s ``reconstruction`` task pointed at, and it is the only
+    thing that task had which distill validation did not — the cosine-to-teacher series it
+    computed is what ``validate`` already returns (eval-merge doc §5, Stage 4). ``val_dir``
+    cannot serve this: ``IndexedImageFolder`` needs class subdirectories, and ADE20K's val
+    images are flat.
+
+    Labels are absent, so the IN1k linear-probe readout is skipped for these images (it is
+    already gated on ``labels_are_in1k``); the cosine series are unaffected."""
     val_index_dir: Path | None = None  # parquet index cache for the val ImageFolder
     webdataset_dir: Path | None = None
     """THE training data source: pre-shuffled WebDataset tar shards under

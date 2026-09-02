@@ -145,6 +145,33 @@ def create_loaders(
     return Loaders(train=train_loader, val=val_loader)
 
 
+class FlatImageDir(Dataset):
+    """A label-free image directory: recursive, filename-sorted, ``(tensor, -1)`` per item.
+
+    Ported from ``canvit_eval/tasks/reconstruction.py::ImageDirDataset`` — the one capability
+    that task had which distill validation lacked. rglob handles a flat folder (ADE20K val)
+    and a class-nested tree alike; the sort is by FILENAME so the order does not depend on
+    the directory layout. The ``-1`` label is what makes ``labels_are_in1k`` false, which is
+    the existing gate that skips the IN1k probe readout.
+    """
+
+    EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"})
+
+    def __init__(self, root: Path, transform) -> None:
+        self.paths = sorted(
+            (p for p in root.rglob("*") if p.suffix.lower() in self.EXTENSIONS),
+            key=lambda p: p.name)
+        assert self.paths, f"no images under {root}"
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __getitem__(self, idx: int) -> tuple[Tensor, int]:
+        from PIL import Image
+        return self.transform(Image.open(self.paths[idx]).convert("RGB")), -1
+
+
 def create_imagefolder_val_loader(cfg: "Config") -> FixedValLoader:
     """Validation loader over a fixed N-sample subset of the raw ImageNet-1k val
     ImageFolder (``cfg.val_dir``).
@@ -160,7 +187,7 @@ def create_imagefolder_val_loader(cfg: "Config") -> FixedValLoader:
     identical regardless of the chunk (batch) size.
     """
     val_dir = cfg.val_dir
-    assert val_dir.is_dir(), f"val_dir not found: {val_dir}"
+    assert cfg.val_image_dir is not None or val_dir.is_dir(), f"val_dir not found: {val_dir}"
 
     sz = cfg.scene_resolution
     persistent = cfg.num_workers > 0
@@ -176,7 +203,10 @@ def create_imagefolder_val_loader(cfg: "Config") -> FixedValLoader:
         val_index_dir = Path(tempfile.mkdtemp(prefix="avp_val_index_"))
         log.info(f"Val: no index_dir available, using temp dir: {val_index_dir}")
 
-    val_ds: Dataset[tuple] = IndexedImageFolder(val_dir, val_index_dir, val_tf)
+    val_ds: Dataset[tuple] = (
+        FlatImageDir(cfg.val_image_dir, val_tf) if cfg.val_image_dir is not None
+        else IndexedImageFolder(val_dir, val_index_dir, val_tf)
+    )
     n_total = len(val_ds)
     assert n_total > 0, "val dataset empty"
 
