@@ -845,7 +845,44 @@ The unqualified version of this gate is unmeetable — the two paths cover diffe
 (F9). The DINOv3 baseline matches canvit_eval's number; per-row IoU aggregates to the same
 dataset mIoU the existing path reports.
 
-### Stage 5 — Tests and bench
+### Stage 5 — Tests and bench — EXECUTED 2026-09-02
+
+**`test_iou_equivalence.py`** came in with Stage 4c, alongside the metric it covers.
+
+**`test_view_scale.py` ported by CASE, not verbatim.** Its subject,
+`resolve_scale_from_metadata`, returned a scale to PIN; this repo adopts the training scale
+into the config and leaves pinning explicit (owner, 2026-09-02), so a verbatim port would
+test semantics that deliberately no longer exist. Every situation it enumerated still has to
+be right, and four were uncovered: the **square** patcher (scale-sensitive for the same
+`fix_size = scale * H` reason and the one likeliest to be forgotten), multi-scale modes
+(`per_rollout` / `per_glimpse` — adopting the *mode* is what keeps the off-scale warning
+quiet for a scale-robust model), a checkpoint with no metadata at all, and `mode=fixed` with
+no value recorded. 365 tests.
+
+**`bench/pt/` went to `CanViT-PyTorch`, not here.** It benchmarks `canvit_pytorch` and its
+only non-core import was two DINOv3 repo ids, so hosting it in the *training* repo would
+invert the dependency exactly the way §8 warns about for eval. Committed as
+`CanViT-PyTorch@3a0dcc2`.
+
+**It did not run.** `run.py` called `CanViT.forward(glimpse=...)`, but bare `CanViT` takes
+`image=` — only the downstream wrappers use `glimpse=`. Every CanViT cell raised `TypeError`,
+so it had been broken against current core for some time. Which is what a benchmark with no
+stored baseline looks like from outside: indistinguishable from one nobody runs.
+
+`matrix.py` was KEPT despite being a subprocess sweep. The objection to `batch.py` and to a
+multi-config eval CLI was duplicating orchestration `slurm/runs/` already has; this is GPU/CPU
+idle gating and CPU-topology-aware thread pinning, which a shell loop cannot do and nothing
+here duplicates.
+
+Baseline committed from this MIG slice, 300 iterations per cell — `canvit` 512px cg32
+amp-bf16 **11.08 ms** (CI 11.08–11.09), `dinov3-vitb16` 512px amp-bf16 **8.98 ms**. A latency
+baseline is valid ONLY on the hardware that made it, so the device is in the filename, the
+JSONL meta and the README — F1's machine-local rule, and more binding for timings than for
+metrics.
+
+**Stage 5 is complete.** Only Stage 6 (docstrings + retire) remains.
+
+### Stage 5 (original text, for the record) — Tests and bench
 
 Port `test_view_scale.py` and `test_iou_equivalence.py`. Port `bench/pt/` (its only
 canvit_eval dependency is two DINOv3 repo constants) and **commit a baseline JSONL** — it

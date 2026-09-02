@@ -226,3 +226,59 @@ def test_dinov3_baseline_shares_the_canvit_reduction():
     src = inspect.getsource(dinov3_baseline)
     assert "make_ade20k_val_loader" in src, "must not build its own val set"
     assert "eval_probe_on_batch" in src, "must not reimplement the mIoU reduction"
+
+
+# --- view-scale resolution: the cases canvit_eval/tests/test_view_scale.py covered ---------
+# Ported by CASE, not verbatim: its `resolve_scale_from_metadata` returned a scale to PIN,
+# whereas this repo adopts the training scale into the config and leaves pinning explicit
+# (owner, 2026-09-02). The situations it enumerated still all have to be right.
+
+def test_square_patcher_scale_is_adopted_too():
+    """`square` is scale-sensitive for the same reason as `foveated` (fix_size = scale * H),
+    and it is the patcher this repo is likeliest to forget."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    adopt_checkpoint_provenance(cfg, _payload(patcher="square", scale=1.41), source="x.pt")
+    assert cfg.foveated_scale.fixed_scale == pytest.approx(1.41)
+
+
+@pytest.mark.parametrize("mode", ["per_rollout", "per_glimpse"])
+def test_multiscale_models_adopt_their_mode_and_are_not_treated_as_fixed(mode):
+    """A model trained across a RANGE of scales is scale-robust; the trajectory's own scales
+    are in distribution for it. Adopting `mode` is what keeps the off-scale warning quiet."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    payload = {"model_config": {"canvit": {"patcher_name": "foveated"}},
+               "metadata": {"pretrain_view_scale": {
+                   "patcher_name": "foveated", "mode": mode, "fixed_scale": None,
+                   "min_scale": 0.5, "max_scale": 1.0}}}
+    adopt_checkpoint_provenance(cfg, payload, source="x.pt")
+    assert cfg.foveated_scale.mode == mode
+    assert cfg.foveated_scale.fixed_scale == 1.0, "no fixed_scale recorded -> leave the default"
+
+
+def test_a_checkpoint_with_no_metadata_at_all_is_a_noop():
+    """Every pre-metadata checkpoint. Unknown must stay unknown, never become 1.0."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    assert adopt_checkpoint_provenance(cfg, {}, source="x.pt") == []
+    assert cfg.foveated_scale == type(cfg.foveated_scale)()
+
+
+def test_mode_fixed_without_a_value_adopts_nothing():
+    """`_as_view_scale_dict` keeps the dict (mode is set) but there is no scale to take."""
+    from canvit_train.ade20k.config import Ade20kConfig
+    from canvit_train.harness.evaluate import adopt_checkpoint_provenance
+
+    cfg = Ade20kConfig()
+    payload = {"model_config": {"canvit": {"patcher_name": "foveated"}},
+               "metadata": {"pretrain_view_scale": {
+                   "patcher_name": "foveated", "mode": "fixed", "fixed_scale": None}}}
+    adopt_checkpoint_provenance(cfg, payload, source="x.pt")
+    assert cfg.foveated_scale.fixed_scale == 1.0
