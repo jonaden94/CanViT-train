@@ -93,8 +93,10 @@ class Ade20kConfig:
     nothing. See ``harness.spec.fixed_horizon_bptt``."""
     glimpse_px: int | None = None
     """Uniform-patcher glimpse crop size in px. None = derive from the model's
-    glimpse_grid_size × patch size/stride (the canvit_eval rule). Ignored for
-    foveated/square models (they consume the full image)."""
+    glimpse_grid_size × patch size/stride, so the patch-embed conv yields exactly
+    glimpse_grid_size tokens per side — see
+    ``harness/rollout/episode.py::derive_glimpse_px``, which enforces it with a hard
+    token-count guard. Ignored for foveated/square models (they consume the full image)."""
     canvas_grid: int | None = None
     """None = scene_size // patch_size."""
 

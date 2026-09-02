@@ -9,9 +9,9 @@ the next job resumes at the next shard slice. A seeded within-stream shuffle buf
 cross-shard mixing (the shards are already globally pre-shuffled at creation). This
 replaced the earlier ``resampled=True`` stream, which could not resume across array jobs.
 
-VAL: the IN1k validation ImageFolder with canvit_eval's canonical preprocessing
-(Resize short side + CenterCrop, aspect-preserving), since the no-features set
-ships no val shards. Point cfg.val_dir at it (IN1K_VAL_DIR / the eval IMAGENET_VAL).
+VAL: the IN1k validation ImageFolder under ``canvit_pytorch.preprocess`` (resize the
+short side, then centre-crop; aspect-preserving), since the no-features set ships no val
+shards. Point cfg.val_dir at it (IN1K_VAL_DIR).
 """
 
 import io

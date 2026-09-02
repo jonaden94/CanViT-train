@@ -4,8 +4,9 @@ Faithful port of canvit_specialize's datasets/ade20k.py + training/ade20k/common
 (the P2 gate is reproducing specialize's probe numbers, so augmentation and
 optimization are kept identical). This is the ONE train-time ADE20K pipeline of
 the unified repo (master plan §3 — the specialize/RL duplicates retire with
-their repos); validation-protocol comparability is anchored by the same squish
-resize canvit_eval uses.
+their repos); validation-protocol comparability is anchored by the squish resize in
+``canvit_pytorch.data.ade20k.make_val_transforms``, which every ADE20K number in this
+project — published, specialize-era and current — was measured under.
 """
 
 import torch

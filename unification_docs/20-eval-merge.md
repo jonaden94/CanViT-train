@@ -890,7 +890,32 @@ has no stored baseline, so as shipped it measures "now" rather than "did this re
 It is complementary to `unification_docs/throughput_ab.py`, which measures training
 throughput, not inference latency.
 
-### Stage 6 — Retire
+### Stage 6 — Retire — EXECUTED 2026-09-02. **The eval merge is complete.**
+
+Docstrings that cited `canvit_eval` as the behavioural SPEC now point at the live module that
+owns the rule — mostly `canvit_pytorch` (`preprocess`, `data.ade20k.make_val_transforms`) or
+`harness/rollout/episode.py::derive_glimpse_px` — or state the rule inline. References that
+are historical *provenance* ("ported from …", "could not be handed to canvit_eval") are kept:
+they are statements about how the code got here, not pointers to a live authority.
+
+`CanViT-eval/ARCHIVED.md` is the redirect table, and carries the warning that its
+`reconstruction` results are wrong (§Stage 4a) and its `ade20k_obj` outputs only ever ran in
+a dev install. `CLAUDE.md` marks the repo read-only beside `CanViT-specialize` and
+`CanViT-PyTorch-RL`. Memory updated (`eval-merge-canvit-eval-retired`).
+
+**An independent confirmation of F1 arrived for free.** exp36's ten seeds ran on production
+A100s pinned to `716051a`, and their step-0 eval reports `miou_t0 =
+0.3768244010757639` — bit-identical to exp34's step-30500 log, the Stage-0 reference. Two
+production runs agree exactly with each other and differ from the MIG-slice measurement by
+the same 8.8e-6. The ~1e-5 spread is hardware, confirmed by a run this work did not produce.
+
+### What is NOT done
+
+**Phase 2 (§8) has not started:** merging `CanViT-PyTorch` into `CanViT-train` and renaming
+to `canvit`. It was always sequenced after this, and the reason still holds — with eval
+separate, moving core would have forced eval to depend on the training repo.
+
+### Stage 6 (original text, for the record) — Retire
 
 Rewrite the **15 source docstrings** that cite `canvit_eval` as the behavioural
 specification (*"Routing follows canvit_eval/episode.py"*, *"canvit_eval's rule"*, *"the

@@ -32,8 +32,9 @@ def _default_in1k_train_dir() -> Path:
 def _default_in1k_val_dir() -> Path:
     if root := os.environ.get("IN1K_VAL_DIR"):
         return Path(root)
-    # Synset-folder ImageFolder (n01440764/, …) — the same val + ordering canvit_eval
-    # uses, so ImageFolder's alphabetical class_idx matches the webdataset's int labels.
+    # Synset-folder ImageFolder (n01440764/, …): ImageFolder's alphabetical class_idx
+    # is what makes the labels match the webdataset's int labels, so the directory layout
+    # is load-bearing, not incidental.
     return Path("/mnt/vast-nhr/projects/nib00021/jonathan/datasets/imagenet1k-val")
 
 
@@ -83,7 +84,7 @@ class In1kConfig:
     nothing. See ``harness.spec.fixed_horizon_bptt``."""
     glimpse_px: int | None = None
     """Uniform-patcher glimpse crop px. None = derive from the model's
-    glimpse_grid_size × patch size/stride (the canvit_eval rule). Ignored for
+    glimpse_grid_size × patch size/stride (``harness/rollout/episode.py``). Ignored for
     foveated/square models (they consume the full image)."""
     canvas_grid: int | None = None
     """None = scene_size // patch_size."""
@@ -154,8 +155,8 @@ class In1kConfig:
     aug_flip_prob: float = 0.5
     """Both ignored when ``augment=False``."""
     resize_mode: ResizeMode = "center_crop"
-    """Val resize. ``center_crop`` (default) matches canvit_eval's canonical IN1k
-    preprocessing and preserves geometry; ``squish`` keeps the full frame but distorts
+    """Val resize. ``center_crop`` (default) is ``canvit_pytorch.preprocess`` — resize
+    the short side, then centre-crop — and preserves geometry; ``squish`` keeps the full frame but distorts
     aspect ratio. Both work for every patcher — see Ade20kConfig.resize_mode for the
     trade-off (aspect-preserving reads better against human viewing for foveated models,
     squish for comparability with numbers measured under squish)."""
