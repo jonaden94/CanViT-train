@@ -593,6 +593,27 @@ in1k, −0.128 mIoU on ade20k) and stamps the mismatch into the output — becau
 degradation is a legitimate experiment, and because `HISTORICAL_DEFAULTS["in1k"]` keeps that
 default on purpose to stay comparable with exp25/exp29/exp33.
 
+**No protocol is fixed, for training-time validation either (owner, 2026-09-02).** Many
+validation settings are adequate and picking one for the user is not this code's job. What
+it owes them is visibility: the RESOLVED axis tuple goes into the validation log line and
+into every output record, the off-scale warning names the remedy with the right value for
+that specific model, and standalone eval refuses to guess. Note the historical default was
+never actually reached for the case that worried us — exp25/exp29/exp33 all set
+`CFG_EVAL_POLICY=random` with `fixed-scale 2.0` explicitly, so every foveated in1k curve was
+in-distribution already. The unpinned-C2F entry is a latent default, not a live one.
+
+**One config per invocation (owner + design, 2026-09-02).** `harness.evaluate` takes ONE
+policy and writes ONE artifact. It was tempting to accept a list, since the model and dataset
+load once per process — but that is an efficiency argument, the weakest reason to complicate
+an interface, and everything else opposes it: a list forces a second CLI mode and a nested
+output schema, leaves failure semantics murky when config 3 of 4 dies, and a loop over
+policies inside the process is precisely the small orchestrator `batch.py` was dropped for.
+
+The reuse seam is the **library**, not the CLI: `evaluate(...) -> dict` is a clean function,
+so comparing four policies on one checkpoint is a short loop in a notebook — which is where
+the owner said results get inspected. If load time ever dominates a real workflow, the answer
+is a documented library-level loop, not a CLI mode.
+
 **Provenance, not restriction, is what protects comparability.** Every eval output records
 the fully resolved axis tuple and whether it matched a known preset. That is what makes "is
 this number comparable to exp33?" answerable later, for any combination however exotic; and
