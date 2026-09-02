@@ -138,14 +138,14 @@ def create_loaders(
     )
     log.info(f"=== CREATE_LOADERS: job_index={job_index}, rank={rank}/{world_size} ===")
 
-    val_loader = _create_imagefolder_val_loader(cfg)
+    val_loader = create_imagefolder_val_loader(cfg)
     train_loader = _create_webdataset_train_loader(
         cfg, job_index=job_index, world_size=world_size, rank=rank
     )
     return Loaders(train=train_loader, val=val_loader)
 
 
-def _create_imagefolder_val_loader(cfg: "Config") -> FixedValLoader:
+def create_imagefolder_val_loader(cfg: "Config") -> FixedValLoader:
     """Validation loader over a fixed N-sample subset of the raw ImageNet-1k val
     ImageFolder (``cfg.val_dir``).
 

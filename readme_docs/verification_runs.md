@@ -234,7 +234,7 @@ bash scripts/eval_ade20k_c2f.sh jon_exp34_ade20k_probe        # -> logs/<group>/
 ```
 
 One GPU, ~10 min for all four (measured on a MIG `3g.40gb` A100 slice with 12 CPUs). The
-script loops the four arms through `scripts/eval_ade20k_checkpoint.py`, which rebuilds each
+script loops the four arms through `python -m canvit_train.harness.evaluate ade20k`, which rebuilds each
 model through the ADE20K task and loads the probe's `best.pt` into it — no HF export step.
 Full ADE20K val (2000 images), `squish-512`, `canvas_grid 32`, batch 16, each arm against
 the backbone its probe was trained on. The two FOVEATED arms add

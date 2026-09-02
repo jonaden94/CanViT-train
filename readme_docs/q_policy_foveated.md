@@ -89,9 +89,10 @@ ADE20K val, `n_timesteps 5`, `canvas_grid 32`, `squish`, `fixed_scale 2.0` — a
 `best.pt`, so they are directly comparable to what the policy run reports:
 
 ```bash
-python scripts/eval_ade20k_checkpoint.py \
-  --ckpt   <probe .pt> --model-repo <backbone .pt> \
-  --eval-policy random --n-timesteps 5 --canvas-grid 32 --resize-mode squish --fixed-scale 2.0
+python -m canvit_train.harness.evaluate ade20k \
+  --opts.ckpt <probe .pt> --cfg.model-repo <backbone .pt> \
+  --cfg.eval-policy random --cfg.n-timesteps 5 --cfg.canvas-grid 32 \
+  --cfg.resize-mode squish --cfg.foveated-scale.fixed-scale 2.0
 ```
 
 A trained policy should beat 0.428 at t4, and should beat random *earliest* — the claim is

@@ -203,6 +203,12 @@ class Ade20kRunTask:
     def branches(self):
         return [ViewpointType.FULL if self.cfg.train_start_full else ViewpointType.RANDOM]
 
+    def build_val_loader(self):
+        """The val loader alone — the seam standalone evaluation uses, so it cannot drift
+        from what training-time validation measures."""
+        from canvit_train.ade20k.data import make_ade20k_val_loader
+        return make_ade20k_val_loader(self.cfg)
+
     def build_loaders(self, *, world_size, rank):
         # SINGLE-GPU ONLY, asserted here as well as via caps().supports_ddp (which fires
         # earlier, in check_spec): `make_ade20k_loaders` builds a map-style

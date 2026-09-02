@@ -151,6 +151,12 @@ class In1kRunTask:
     def branches(self):
         return [ViewpointType.FULL if self.cfg.train_start_full else ViewpointType.RANDOM]
 
+    def build_val_loader(self):
+        """The val loader alone (see the ade20k twin). ``None`` when ``cfg.val_dir`` is
+        absent, matching what ``build_loaders`` hands the harness."""
+        from canvit_train.in1k.data import make_val_loader
+        return make_val_loader(self.cfg, world_size=1, rank=0) if self.cfg.val_dir.is_dir() else None
+
     def build_loaders(self, *, world_size, rank):
         from canvit_train.in1k.data import make_train_loader, make_val_loader
         loader, _ = make_train_loader(

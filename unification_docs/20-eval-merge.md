@@ -538,7 +538,37 @@ now carries `pretrain_view_scale` + `teacher_name`, and the resolver fires on it
 against the F5 numbers, which are what "inert" costs: 0.114 top1 on in1k, 0.128 mIoU on
 ade20k.
 
-### Stage 3 — `harness.evaluate`
+### Stage 3 — `harness.evaluate` — EXECUTED 2026-09-02 (3a policy surface, 3b entry point)
+
+`python -m canvit_train.harness.evaluate <distill|ade20k|in1k> --opts.ckpt … --cfg.…`, tyro
+subcommands over each task's own config dataclass. It builds the task, restores the
+checkpoint strictly, takes the val loader from the new `task.build_val_loader()` — the SAME
+one `build_loaders` hands the training loop — and calls `task.evaluate`. Nothing here is a
+parallel implementation, which is why it cannot drift from the numbers a run logs.
+
+`build_val_loader` is the seam that makes that true, and it removed real duplication: the
+ade20k val loader is now built in one place instead of inside `make_ade20k_loaders`, so
+standalone eval no longer has to construct the train split just to reach the val set.
+
+**`auto` is refused** for a standalone measurement, with a message naming the hazard
+concretely. `HISTORICAL_DEFAULTS` stays the *training* default, untouched.
+
+**One config per invocation.** `scripts/eval_ade20k_checkpoint.py` is deleted — it was this
+for one task. Its live consumer `scripts/eval_ade20k_c2f.sh` now loops the four arms through
+`harness.evaluate`, which is exactly where a loop belongs: the owner's own orchestration, in
+the shell, one artifact per measurement.
+
+**Gate — PASSED.** 340 tests, and standalone reproduces the Stage-0 baseline
+**bit-identically on all three tasks**: ade20k `fixation_grid` and `full`+pin 2.0 (ten
+timesteps each), in1k `fixation_grid`, distill `val_metric`. That is the gate this stage was
+always going to be judged on, and the numbers came from the pre-existing drivers, so the new
+entry point is proven against code it replaces. Artifacts: `stage0_baseline/gate3b_*.json`.
+
+**Still to do in this stage:** the two readers (§Stage 2 deferred them here, where the caller
+now exists) and F8 (distill's `validate` returning its per-timestep series instead of logging
+it, so a standalone distill record is more than one scalar).
+
+### Stage 3 (original text, for the record) — `harness.evaluate`
 
 `python -m canvit_train.harness.evaluate <distill|ade20k|in1k> --cfg…`, mirroring
 `harness.run`: tyro subcommands over each task's own config dataclass, which is already

@@ -9,13 +9,6 @@ resize canvit_eval uses.
 """
 
 import torch
-from dinov3.eval.segmentation.schedulers import WarmupOneCycleLR
-from dinov3.eval.segmentation.transforms import make_segmentation_train_transforms
-from PIL import Image
-from torch import Tensor
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import LRScheduler
-from torch.utils.data import DataLoader
 
 # ADE20K dataset + val transforms + label constants are the shared val-protocol
 # primitives; they live in core (canvit_pytorch) so CanViT-eval uses the exact
@@ -27,8 +20,32 @@ from canvit_pytorch.data.ade20k import (  # noqa: F401  (re-exported)
     ADE20kDataset,
     make_val_transforms,
 )
+from dinov3.eval.segmentation.schedulers import WarmupOneCycleLR
+from dinov3.eval.segmentation.transforms import make_segmentation_train_transforms
+from PIL import Image
+from torch import Tensor
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import LRScheduler
+from torch.utils.data import DataLoader
 
 from .config import Ade20kConfig
+
+
+def make_ade20k_val_loader(cfg: Ade20kConfig) -> DataLoader:
+    """The ADE20K val loader on its own.
+
+    Lifted out of :func:`make_ade20k_loaders` so standalone evaluation and training-time
+    validation draw the val set from ONE place — building the train split as well just to
+    reach it would scan a directory eval never touches.
+    """
+    if not cfg.ade20k_root.exists():
+        raise FileNotFoundError(
+            f"ADE20K root not found: {cfg.ade20k_root}. Set ADE20K_ROOT or pass --ade20k-root."
+        )
+    val_img_tf, val_mask_tf = make_val_transforms(cfg.scene_size, cfg.resize_mode)
+    val_ds = ADE20kDataset(root=cfg.ade20k_root, split="validation",
+                           img_transform=val_img_tf, mask_transform=val_mask_tf)
+    return DataLoader(val_ds, cfg.eval_batch_size, num_workers=cfg.num_workers, pin_memory=True)
 
 
 def make_ade20k_loaders(cfg: Ade20kConfig) -> tuple[DataLoader, DataLoader]:
@@ -62,14 +79,10 @@ def make_ade20k_loaders(cfg: Ade20kConfig) -> tuple[DataLoader, DataLoader]:
         # Ade20kConfig.augment for why (RandomCrop + PhotoMetricDistortion have no knob).
         train_ds = ADE20kDataset(root=cfg.ade20k_root, split="training",
                                  img_transform=val_img_tf, mask_transform=val_mask_tf)
-    val_ds = ADE20kDataset(root=cfg.ade20k_root, split="validation",
-                           img_transform=val_img_tf, mask_transform=val_mask_tf)
-
     train_loader = DataLoader(
         train_ds, cfg.batch_size, shuffle=True, num_workers=cfg.num_workers, pin_memory=True, drop_last=True
     )
-    val_loader = DataLoader(val_ds, cfg.eval_batch_size, num_workers=cfg.num_workers, pin_memory=True)
-    return train_loader, val_loader
+    return train_loader, make_ade20k_val_loader(cfg)
 
 
 def make_optimizer_and_scheduler(

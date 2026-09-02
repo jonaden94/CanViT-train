@@ -42,14 +42,23 @@ for entry in "${RUNS[@]}"; do
     IFS=: read -r run repo scale <<<"$entry"
     echo "=== $run ${scale:+(foveated, scale pinned to $scale)} ==="
     extra=()
-    if [ -n "$scale" ]; then extra=(--override-scale "$scale" --fixed-scale "$scale"); fi
-    $PY scripts/eval_ade20k_checkpoint.py \
-        --ckpt "logs/$GROUP/$run/checkpoints/best.pt" \
-        --model-repo "$SRC/$repo" \
-        --eval-policy coarse_to_fine --n-timesteps 21 \
-        --eval-batch-size 16 --num-workers 8 \
-        "${extra[@]}" \
-        --out "$OUT/$run.json"
+    if [ -n "$scale" ]; then
+        extra=(--cfg.eval-override-scale "$scale" --cfg.foveated-scale.fixed-scale "$scale")
+    fi
+    # `harness.evaluate` replaced scripts/eval_ade20k_checkpoint.py (2026-09-02): the
+    # per-task driver became one entry point for all three tasks, proven bit-identical
+    # against this script's own numbers. The loop over arms stays HERE, in the shell --
+    # one measurement per invocation, one artifact each (eval-merge doc §5, Stage 3).
+    # eval-batch-size is pinned to 16 rather than left at the config default of 32: C2F
+    # shuffles within each quadtree level, so the batch size changes the RNG pattern and
+    # this script's earlier outputs were taken at 16.
+    $PY -m canvit_train.harness.evaluate ade20k \
+        --opts.ckpt "logs/$GROUP/$run/checkpoints/best.pt" \
+        --opts.out "$OUT/$run.json" \
+        --cfg.model-repo "$SRC/$repo" \
+        --cfg.eval-policy coarse_to_fine --cfg.n-timesteps 21 \
+        --cfg.eval-batch-size 16 --cfg.num-workers 8 \
+        "${extra[@]}" >/dev/null
 done
 
 echo "=== done -> $OUT ==="

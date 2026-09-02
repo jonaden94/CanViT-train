@@ -263,6 +263,13 @@ class DistillRunTask:
         return ([ViewpointType.FULL] * self.cfg.n_full_start_branches
                 + [ViewpointType.RANDOM] * self.cfg.n_random_start_branches)
 
+    def build_val_loader(self):
+        """The val loader alone (see the ade20k twin). Note ``build_loaders`` additionally
+        seeds the normalizer from a training shard when the checkpoint carried no stats;
+        standalone evaluation gets them from the checkpoint and asserts so."""
+        from canvit_train.distill.data import create_imagefolder_val_loader
+        return create_imagefolder_val_loader(self.cfg)
+
     def build_loaders(self, *, world_size, rank):
         from canvit_train.distill.data import create_loaders
         from canvit_train.distill.data.webdataset import (
