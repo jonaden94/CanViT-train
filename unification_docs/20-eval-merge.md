@@ -786,8 +786,26 @@ which is the domain shift one would expect.
 
 **Gate — PASSED.** 351 tests, four standalone rows still bit-identical.
 
-**Still to do in this stage:** `ade20k-seg-dinov3` (the teacher baseline) and the per-row
-IoU output.
+**4b — `ade20k-seg-dinov3`, the teacher baseline, ported 2026-09-02.**
+`harness.evaluate ade20k-dinov3`: the DINOv3 teacher's own ADE20K score, one passive forward,
+mIoU at t0 — the reference line the CanViT numbers are read against. It has no checkpoint and
+no episode (hence its own opts rather than `EvalOpts`), but it shares
+`make_ade20k_val_loader` and `eval_probe_on_batch`, so the baseline and the model it bounds
+are measured identically rather than merely similarly.
+
+**Gate — PASSED, bit-identical.** Both implementations over the full 2000-image val set with
+a shared probe: `0.0006143441136078409` on each side, Δ `+0.000e+00`. The probe is a
+*synthetic* one, and deliberately so: a random probe is the correct instrument for an
+equivalence test, since it proves the two implementations compute the same function without
+needing a good one. 354 tests.
+
+**Recorded while doing it: no probe in this stack can read DINOv3 features.** Both cached
+ADE20K probes (`probe-ade20k-40k-s512-c32/c64-in21k`) are 1024-d and `feat_type:
+canvas_hidden`, i.e. trained on CanViT CANVAS features; DINOv3-B/16 patches are 768-d. So a
+*real* baseline number needs a probe trained on teacher features that nobody here has
+published. The capability is ported and correct; the artifact to feed it does not exist yet.
+
+**Still to do in this stage:** the per-row IoU output.
 
 ### Stage 4 (original text, for the record) — The eval-only capabilities
 

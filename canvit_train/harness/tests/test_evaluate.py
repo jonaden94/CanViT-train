@@ -185,3 +185,44 @@ def test_validate_returns_a_mapping_not_a_scalar():
     from canvit_train.distill.validate import validate
 
     assert inspect.signature(validate).return_annotation == dict[str, float]
+
+
+# --- the DINOv3 teacher baseline ---------------------------------------------
+# Ported from canvit_eval's `ade20k-seg-dinov3`. Verified bit-identical against it over the
+# full 2000-image val set with a shared synthetic probe (0.0006143441136078409 both sides) --
+# a random probe is the right instrument for an equivalence test, since it proves the two
+# implementations compute the same function without needing a good one.
+#
+# Worth recording: NO probe in this stack can actually read DINOv3 features. Both cached
+# ADE20K probes are 1024-d `canvas_hidden` probes and DINOv3-B/16 patches are 768-d, so a
+# real baseline number needs a probe nobody here has trained yet.
+
+def test_dinov3_baseline_requires_probe_and_resolution():
+    """`eval_resolution` has no default on purpose: the probe was trained at one resolution
+    and running the teacher at another degrades mIoU silently."""
+    cmd = tyro.cli(Command, args=["ade20k-dinov3", "--opts.probe-repo", "", 
+                                  "--opts.eval-resolution", "0"])
+    with pytest.raises(AssertionError, match="both required"):
+        cmd.run()
+
+
+def test_dinov3_baseline_flags_reach_their_config():
+    cmd = tyro.cli(Command, args=[
+        "ade20k-dinov3", "--opts.probe-repo", "some/probe", "--opts.eval-resolution", "512",
+        "--cfg.resize-mode", "squish", "--opts.teacher-repo", "facebook/dinov3-vitl16-pretrain-lvd1689m",
+    ])
+    assert cmd.opts.probe_repo == "some/probe" and cmd.opts.eval_resolution == 512
+    assert cmd.cfg.resize_mode == "squish"
+    assert "vitl16" in cmd.opts.teacher_repo
+
+
+def test_dinov3_baseline_shares_the_canvit_reduction():
+    """Same val loader and same upsample-then-argmax as the CanViT path, so the baseline and
+    the model it bounds are measured identically rather than merely similarly."""
+    import inspect
+
+    from canvit_train.ade20k import dinov3_baseline
+
+    src = inspect.getsource(dinov3_baseline)
+    assert "make_ade20k_val_loader" in src, "must not build its own val set"
+    assert "eval_probe_on_batch" in src, "must not reimplement the mIoU reduction"

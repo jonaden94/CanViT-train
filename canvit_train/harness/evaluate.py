@@ -43,6 +43,7 @@ import torch
 import tyro
 
 from canvit_train.ade20k.config import Ade20kConfig
+from canvit_train.ade20k.dinov3_baseline import DinoV3BaselineOpts
 from canvit_train.distill.config import Config as DistillConfig
 from canvit_train.in1k.config import In1kConfig
 
@@ -221,7 +222,30 @@ class DistillEval:
         return DistillRunTask(self.cfg), "distill"
 
 
+@dataclass
+class Ade20kDinoV3Eval:
+    """ADE20K with the DINOv3 TEACHER instead of a CanViT: one passive forward, mIoU at t0.
+
+    The reference line the CanViT numbers are read against. No checkpoint and no episode --
+    hence its own opts rather than ``EvalOpts`` -- but the same val images, transforms and
+    mIoU reduction, so the baseline and the model it bounds are measured identically."""
+
+    cfg: Ade20kConfig = field(default_factory=Ade20kConfig)
+    opts: DinoV3BaselineOpts = field(
+        default_factory=lambda: DinoV3BaselineOpts(probe_repo="", eval_resolution=0))
+    out: Path | None = None
+
+    def run(self) -> dict[str, Any]:
+        from canvit_train.ade20k.dinov3_baseline import evaluate_dinov3
+        assert self.opts.probe_repo and self.opts.eval_resolution, (
+            "--opts.probe-repo and --opts.eval-resolution are both required: the probe was "
+            "trained at one resolution and running the teacher at another degrades mIoU "
+            "silently.")
+        return evaluate_dinov3(self.cfg, self.opts)
+
+
 Command = Annotated[Ade20kEval, tyro.conf.subcommand("ade20k")] | \
+    Annotated[Ade20kDinoV3Eval, tyro.conf.subcommand("ade20k-dinov3")] | \
     Annotated[In1kEval, tyro.conf.subcommand("in1k")] | \
     Annotated[DistillEval, tyro.conf.subcommand("distill")]
 
@@ -229,14 +253,17 @@ Command = Annotated[Ade20kEval, tyro.conf.subcommand("ade20k")] | \
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     cmd = tyro.cli(Command)  # pyright: ignore[reportArgumentType]
-    task, task_name = cmd.build()
-    record = evaluate(task, cmd.cfg, cmd.opts, task_name=task_name)
+    if isinstance(cmd, Ade20kDinoV3Eval):
+        record, out = cmd.run(), cmd.out
+    else:
+        task, task_name = cmd.build()
+        record, out = evaluate(task, cmd.cfg, cmd.opts, task_name=task_name), cmd.opts.out
     text = json.dumps(record, indent=2, default=str)
     print(text)
-    if cmd.opts.out is not None:
-        cmd.opts.out.parent.mkdir(parents=True, exist_ok=True)
-        cmd.opts.out.write_text(text)
-        log.info("wrote %s", cmd.opts.out)
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text)
+        log.info("wrote %s", out)
 
 
 if __name__ == "__main__":
