@@ -732,12 +732,38 @@ scene_cos_raw  canvit_train (destandardized)  = 0.926994   difference +0.279
 scene_cos_norm (identical in both)            = 0.857282
 ```
 
-**distill's is correct.** The distill training target is `scene_norm(raw_patches)` and the
-MSE loss compares `scene_pred` against it, so `predict_teacher_scene` outputs in NORMALIZED
-space; comparing it to raw teacher features without destandardizing is dimensionally
-inconsistent, and the cosine is then dominated by the per-channel mean offset. The
-`*_cos_norm` series compare like with like and agree in both repos — only the `*_cos_raw`
-pair diverges, which is the tell.
+**distill's is correct**, established two independent ways
+(`stage0_baseline/recon_space.py`).
+
+*From the training code:* the target is `scene_norm(raw_patches)` and the MSE loss compares
+`scene_pred` against it, so `predict_teacher_scene` is trained to output NORMALIZED features.
+
+*From the tensors themselves*, without reference to that code — per-channel moments:
+
+| tensor | std | ‖vec‖ |
+|---|---|---|
+| raw teacher patches | 0.329 | 11.58 |
+| normalized teacher (`scene_norm`) | 0.988 | 27.39 |
+| **`predict_teacher_scene` output** | **0.849** | **23.58** |
+| `destandardize(pred)` | 0.291 | 10.79 |
+
+The prediction sits with the NORMALIZED teacher; destandardizing moves it onto the raw one.
+
+And the cosine pattern is symmetric, which is the clincher:
+
+```
+pred                vs norm_teacher   0.857   matched
+destandardize(pred) vs raw_teacher    0.927   matched
+pred                vs raw_teacher    0.648   MISMATCHED (canvit_eval)
+destandardize(pred) vs norm_teacher   0.599   MISMATCHED
+```
+
+Both mismatched pairings are low. Had `pred` been in raw space the pattern would invert.
+
+**Nothing of this repo's own history is affected.** `scene_cos_raw = 0.927` is the
+destandardized comparison, i.e. what distill has logged since exp22 — the correct number all
+along. Only canvit_eval's separate reconstruction task crossed the spaces, and it is the
+thing being retired.
 
 So any `scene_cos_raw` / `cls_cos_raw` published from canvit_eval's reconstruction task is
 understated. `*_cos_norm` from it is fine.
