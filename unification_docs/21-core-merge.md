@@ -484,3 +484,65 @@ every `slurm/runs/*.sh`, ~116 files).
 Also outstanding, deliberately not done here: the session-level `CLAUDE.md` still describes
 six repos with `CanViT-PyTorch`/`canvit_pytorch` as the model. One edit can cover that and
 the rename together, so it belongs with P4.
+
+## 11 — P4 EXECUTED 2026-09-03. The repo is `canvit`. Phase 2 is closed.
+
+`repos/CanViT-train` → **`repos/canvit`**. Prepared by `42dd4b7`, which repointed every live
+path first so the move itself was a bare `mv` with nothing left to chase.
+
+**Gates:** 493 passed from the new path, and the ade20k `fixation_grid` row re-run there is
+**bit-identical to P3** (12 scalars, worst |diff| 0.000e+00) — so the rename moved no number
+either. `squeue` showed no queued or running training job, so nothing was pinned mid-flight.
+
+### 11.1 §6's blast-radius estimate (~116 files) was wrong by an order of magnitude
+
+Two things it feared are rename-safe **by construction**, which one grep each would have
+shown:
+
+* `_REPO_BASE="$(dirname "$PWD")"` — **derived**, not hardcoded.
+* every `slurm/runs/*.sh` uses `cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"` —
+  **purely relative**.
+
+And no other repo's venv referenced this one (all five checked). The genuine edits were:
+`harness_train.sbatch`'s single `git -C "$_REPO_BASE/CanViT-train" archive` (plus the
+`$_CODE_DIR` snapshot directory, renamed with it so the archive destination, the `PYTHONPATH`
+entry and the `_PKG` probe stay self-consistent), `.envrc.grete`'s `LOGS_DIR`, two absolute
+paths in `readme_docs/q_policy_foveated.md`, and the README's layout tree.
+
+The lesson is the one this repo keeps relearning: **estimate blast radius by grepping for the
+mechanism, not by counting files that contain the string.** 116 launchers mention the repo;
+approximately zero of them hardcode its path.
+
+### 11.2 The venvs are the part that actually breaks, and `mv` does not fix them
+
+Renaming the directory invalidates every absolute path baked into both venvs. Repaired by
+hand (owner's choice over `uv sync`, which would have re-resolved the conflicting torch groups
+and could have moved the digest-test baseline):
+
+| what | count per venv |
+|---|---|
+| `_editable_impl_canvit_train.pth` | 1 — repointed at the venv's own repo |
+| console-script shebangs in `bin/` | 68 |
+| `activate`, `.csh`, `.fish`, `.bat`, `.nu` (`VIRTUAL_ENV=`) | 5 |
+
+The `activate*` scripts were the easy ones to miss: they carry no `#!`, so a shebang-only
+sweep skips them, and the breakage only shows up for someone who `source`s the venv rather
+than calling `.venv-cu126/bin/python` directly. Zero old-path references remain in either venv.
+
+`uv sync` is still worth running whenever the network allows — it will also clear the stale
+`canvit_train` and `canvit_pytorch` dist-info left behind by P1.
+
+### 11.3 Session `CLAUDE.md`
+
+Updated outside the repo (`canvit_modify/` is not a git repo, so there is no commit for it):
+the status blockquote, the repo table, the venv table, and `git_status_all.sh`'s repo list.
+Live *pointers* were repointed; genuinely historical mentions of `CanViT-train` were kept, the
+same per-line rule §10.1 arrived at. It also fixed a **pre-existing** error unrelated to this
+phase: two references to `slurm/base_train.sbatch`, a file the 2026-07-31 harness
+consolidation renamed `harness_train.sbatch`.
+
+### 11.4 Not done, and deliberately so
+
+`CanViT-PyTorch` has **no `ARCHIVED.md`**, unlike `CanViT-eval`. Its read-only status is
+recorded in `CLAUDE.md` and in this repo's README table, but a redirect file in the clone
+itself would be the consistent thing and is a one-file change if wanted.
