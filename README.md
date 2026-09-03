@@ -1,9 +1,194 @@
-# CanViT-train
+# CanViT
 
-All training for [CanViT](https://github.com/m2b3/CanViT-PyTorch)
-([arXiv:2603.22570](https://arxiv.org/abs/2603.22570)) — a recurrent dual-stream
-vision transformer that builds up a persistent *canvas* representation from a
-sequence of glimpses.
+<p align="center">
+  <img src="assets/canvas_attention_across_scales.png" alt="Canvas attention across scales — two example trajectories showing glimpses, canvas crops, and full canvas PCA/change maps over multiple timesteps." width="100%">
+</p>
+
+_[CanViT: Toward Active-Vision Foundation Models](https://arxiv.org/abs/2603.22570) (arXiv:2603.22570)_
+
+**Yohaï-Eliel Berreby, Sabrina Du, Audrey Durand, B. Suresh Krishna**
+
+Reference PyTorch implementation of CanViT, the Canvas Vision Transformer — **and
+everything that trains and evaluates it.** The model lives in
+[`canvit/core/`](canvit/core/); pretraining, downstream probes and finetunes, viewpoint-policy
+RL and standalone evaluation live alongside it behind one harness.
+
+### News
+
+- **2026-04-06**: First finetuned IN1k checkpoint: [`canvitb16-add-vpe-finetune-g128px-s512px-in1k-2026-04-06`](https://huggingface.co/canvit/canvitb16-add-vpe-finetune-g128px-s512px-in1k-2026-04-06), with new `CanViTForImageClassification` API.
+  - 🎉 CanViT sets a new SOTA on **active-vision IN1k classification**, with **84.5% top-1 accuracy**, up from [AdaptiveNN](https://github.com/LeapLabTHU/AdaptiveNN)'s previous best of 82.2%.
+- **2026-03-23**: Preprint v1 ([arXiv:2603.22570](https://arxiv.org/abs/2603.22570)).
+  - 🎉 CanViT sets a new SOTA on **active ADE20K segmentation**, with **45.9% ADE20K mIoU**, obtained using linear probing from frozen weights.
+- **2026-02-18**: Initial code and [first pretrained checkpoint](https://huggingface.co/canvit/canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02) release.
+
+---
+
+CanViT is a scalable recurrent architecture for fine-grained vision, and the first **Active-Vision Foundation Model (AVFM)**: a foundation model for active vision that is both task-agnostic and policy-agnostic.
+
+CanViT processes scenes through sequences of localized glimpses, integrating observations over time into a persistent scene-wide latent workspace — the **canvas** — via **Canvas Attention**, an efficient asymmetric cross-attention mechanism which is based on Scene-Relative Rotary Position Embeddings and eliminates canvas-side QKVO projections.
+
+CanViT-B is pretrained on 1 billion glimpses taken from 13.2 million ImageNet-21k scenes, via **policy-agnostic passive-to-active dense distillation** from a frozen high-resolution DINOv3 ViT-B teacher, without human annotations.
+
+CanViT's scene-wide output features at each timestep are linearly decodable into dense predictions without post-hoc upscaling; a frozen-weights CanViT-B evaluated with linear probing outperforms all prior dense active vision models by a wide margin on ADE20K scene parsing, at a fraction of the cost, while offering significantly greater flexibility.
+
+CanViT generalizes natively across policies, sequence length, glimpse size and canvas size, enabling high-resolution and long-horizon continual pretraining alongside task-specific policy learning.
+
+CanViT enables low-latency high-resolution dense vision, running at hundreds of sequential frames per second on commodity hardware.
+
+## Checkpoints
+
+We release checkpoints on HuggingFace under the [`canvit`](https://huggingface.co/canvit) namespace.
+
+| Checkpoint | Description |
+|------------|-------------|
+| [`canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02`](https://huggingface.co/canvit/canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02) | Pretrained on IN21k via dense distillation from DINOv3 |
+| [`canvitb16-add-vpe-finetune-g128px-s512px-in1k-2026-04-06`](https://huggingface.co/canvit/canvitb16-add-vpe-finetune-g128px-s512px-in1k-2026-04-06) | Finetuned for ImageNet-1k classification (trained on TPU v6e via [torch_xla](https://github.com/pytorch/xla)) |
+
+## Quickstart
+
+Set the environment up as in [Setup](#setup) below, then:
+
+```python
+from canvit.core import CanViTForPretrainingHFHub, Viewpoint, sample_at_viewpoint
+from canvit.core.preprocess import preprocess
+from PIL import Image
+import torch
+
+# CanViT is integrated with the HuggingFace Hub.
+model = CanViTForPretrainingHFHub.from_pretrained(
+    "canvit/canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02"
+).eval()
+
+# Replace with the image of your choice
+image = Image.open("test_data/Cat03.jpg").convert("RGB")
+image = preprocess(512)(image)
+image = image.unsqueeze(0)  # [1, 3, 512, 512]
+
+# CanViT is a recurrent model.
+state = model.init_state(batch_size=1, canvas_grid_size=32)
+
+# Let's process a first glimpse: centered, zoomed-out.
+# You can use any viewpoint you like, as long as it is within bounds.
+# CanViT was trained on viewpoints covering 0.25% to 100%
+# of a scene's surface area.
+with torch.inference_mode():
+    vp = Viewpoint.full_scene(batch_size=1, device=image.device)
+    glimpse = sample_at_viewpoint(spatial=image, viewpoint=vp, glimpse_size_px=128)
+    out = model(image=glimpse, state=state, viewpoint=vp)
+
+# Let's inspect the structure of what we get back.
+# The canvas contains the model's working understanding of
+# the scene at any given time, and is linearly decodable
+# into dense predictions upon token-wise LayerNorm.
+# See `demos/basic.py` for how to visualize the canvas.
+canvas_spatial = model.get_spatial(out.state.canvas)  # [1, 1024, 1024]
+canvas_spatial = canvas_spatial.unflatten(1, (32, 32))  # [1, 32, 32, 1024] — spatial feature map
+out.state.recurrent_cls  # [1, 1, 768] — global CLS token
+out.local_patches        # [1, 64, 768] — glimpse patch features
+
+# Now let's do a second glimpse: zoom into the top-left quadrant
+# You can do this repeatedly: CanViT is recurrent with a large but constant-size canvas.
+with torch.inference_mode():
+    vp2 = Viewpoint(centers=torch.tensor([[-.5, -.5]]), scales=torch.tensor([.5]))
+    glimpse2 = sample_at_viewpoint(spatial=image, viewpoint=vp2, glimpse_size_px=128)
+    out2 = model(image=glimpse2, state=out.state, viewpoint=vp2)
+
+# You can use CanViT with frozen weights, fine-tune it, learn a policy on top...
+# Or pretrain your own; it's fast.
+# Start building!
+```
+
+> **The pretraining model's forward takes `image=`**, while the classification and
+> segmentation wrappers below take `glimpse=`. Both are keyword-only, so mixing them up is
+> a `TypeError` rather than a silent bug.
+
+### ImageNet-1k classification
+
+`CanViTForImageClassification` provides a unified interface for classification. Two construction paths, same forward pass:
+
+**From a finetuned checkpoint** (CanViT + head trained on IN1k):
+
+```python
+from canvit.core import CanViTForImageClassification, Viewpoint, sample_at_viewpoint
+from canvit.core.preprocess import preprocess
+from PIL import Image
+import torch
+
+clf = CanViTForImageClassification.from_pretrained(
+    "canvit/canvitb16-add-vpe-finetune-g128px-s512px-in1k-2026-04-06"
+).eval()
+```
+
+**From the frozen pretrained CanViT checkpoint + a [DINOv3 linear probe](https://huggingface.co/canvit/dinov3-vitb16-lvd1689m-in1k-512x512-linear-clf-probe)**:
+
+```python
+clf = CanViTForImageClassification.from_pretrained_with_probe(
+    pretrained_repo="canvit/canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02",
+    probe_repo="canvit/dinov3-vitb16-lvd1689m-in1k-512x512-linear-clf-probe",
+).eval()
+```
+
+**Both have the same forward pass:**
+
+```python
+image = preprocess(512)(Image.open("test_data/Cat03.jpg").convert("RGB")).unsqueeze(0)
+state = clf.init_state(batch_size=1, canvas_grid_size=32)
+
+with torch.inference_mode():
+    vp = Viewpoint.full_scene(batch_size=1, device=image.device)
+    glimpse = sample_at_viewpoint(spatial=image, viewpoint=vp, glimpse_size_px=128)
+    logits, state = clf(glimpse=glimpse, state=state, viewpoint=vp)
+
+print(logits.argmax(dim=-1))  # ImageNet-1k class index
+```
+
+### ADE20K semantic segmentation
+
+`CanViTForSemanticSegmentation` bundles a CanViT and a `SegmentationProbe` head into one model. `forward` returns per-pixel logits at canvas-grid resolution; `predict` adds bilinear upsampling.
+
+```python
+from canvit.core import CanViTForSemanticSegmentation
+
+# Frozen CanViT + the flagship ADE20K probe (45.9% mIoU, 1024px / 64x64 canvas):
+seg = CanViTForSemanticSegmentation.from_pretrained_with_probe(
+    pretrained_repo="canvit/canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02",
+    probe_repo="canvit/probe-ade20k-40k-s1024-c64-in21k",
+).eval()
+
+state = seg.init_state(batch_size=1, canvas_grid_size=64)
+logits, state = seg(glimpse=glimpse, state=state, viewpoint=vp)               # [B, n_cls, 64, 64]
+upsampled, state = seg.predict(glimpse=glimpse, state=state, viewpoint=vp,
+                               target_size=(1024, 1024))                       # [B, n_cls, 1024, 1024]
+```
+
+The standalone `SegmentationProbe` head is also exported from `canvit.core` for use on any spatial feature map. Published probes: [canvit ADE20K segmentation probes collection](https://huggingface.co/collections/canvit/canvit-ade20k-segmentation-probes).
+
+## Demos
+
+```bash
+# Classification with sequential glimpses
+.venv/bin/python demos/classify.py                # finetuned checkpoint
+.venv/bin/python demos/classify.py --mode frozen  # frozen CanViT + fused probe
+
+# Canvas PCA visualization with two viewing strategies
+.venv/bin/python demos/basic.py
+```
+
+`demos/basic.py` needs the `demo` extra (`uv sync --extra demo`) for scikit-learn.
+
+## Supported platforms
+
+- **CPU**
+- **CUDA** (tested on RTX 4090, H100 SXM 80GB, A100 80GB incl. MIG slices)
+- **TPU** via [torch_xla](https://github.com/pytorch/xla) 2.9.0 (tested on TPU v6e) — for the
+  model only; the training harness here is CUDA/CPU.
+
+We aim to maintain compatibility with [`torch.export`](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/export.html) and [ONNX Runtime](https://onnxruntime.ai/).
+
+`bench/pt/` holds the inference benchmark (`run.py`, `matrix.py`, `analyze.py`) and the
+committed baselines it compares against.
+
+## What this repo trains
 
 Three training objectives, one unified framework and one entry point:
 
@@ -19,18 +204,25 @@ either alone against a frozen model or jointly with the task.
 
 ## Repository layout
 
-CanViT-train is one of four repos that make up the project:
+Two repos are live:
 
 ```
 repos/
 ├── fovi/               # foveated-vision library: cortical-magnification patch geometry
-├── CanViT-PyTorch/     # the model: canvas ViT, patchers, HF-hub model classes
-├── CanViT-train/       # this repo: all training
-└── CanViT-eval/        # evaluation / benchmarking and analysis notebooks
+└── CanViT-train/       # this repo: the model + all training + all evaluation
 ```
 
-The dependency direction is `fovi` → `CanViT-PyTorch` → {`CanViT-train`,
-`CanViT-eval`}. Each repo has its **own** uv-managed virtual environment.
+The dependency direction is `fovi` → this repo. Each has its **own** uv-managed virtual
+environment.
+
+Three further clones are kept **read-only, as fallback references** — do not edit them, and
+prefer this repo's equivalents:
+
+| clone | superseded by | kept because |
+|---|---|---|
+| `CanViT-PyTorch/` | [`canvit/core/`](canvit/core/) | 116 launchers `git archive` a core commit out of its `.git` to pin long runs |
+| `CanViT-eval/` | `canvit.harness.evaluate` | its `results/` are the historical record (its `reconstruction` task's `*_cos_raw` numbers are wrong — see its `ARCHIVED.md`) |
+| `CanViT-specialize/`, `CanViT-PyTorch-RL/` | `canvit.{ade20k,in1k}`, `canvit.harness.policy` | pre-unification reference for the downstream and RL recipes |
 
 ## Setup
 
@@ -50,14 +242,17 @@ torch is pinned in the `cuda` (default) and `cu126` dependency groups in
 ship sm_70 kernels, which the CUDA-13.x wheels dropped. Both share the same
 `[tool.uv.sources]`.
 
-`[tool.uv.sources]` links the siblings as a **relative-path editable install**
-(`canvit-pytorch = { path = "../CanViT-PyTorch", editable = true }`; `fovi`
-arrives transitively via `canvit-pytorch[fovi]`, also editable). Relative paths
-resolve on any machine as long as the repos are siblings, and the editable
-installs mean edits in the local `CanViT-PyTorch` / `fovi` clones take effect
-immediately. To install *without* the siblings present, point that entry at the
-remote instead — `canvit-pytorch = { git = "https://github.com/jonaden94/CanViT-PyTorch.git" }`
-— and `uv sync`.
+`[tool.uv.sources]` links the one remaining sibling as a **relative-path editable install**
+(`fovi = { path = "../fovi", editable = true }`). Relative paths resolve on any machine as
+long as the repos are siblings, and the editable install means edits in the local `fovi`
+clone take effect immediately. To install *without* the sibling present, point that entry at
+the remote instead — `fovi = { git = "https://github.com/jonaden94/fovi.git" }` — and
+`uv sync`.
+
+Until 2026-09-03 the model was a second sibling (`canvit-pytorch = { path =
+"../CanViT-PyTorch", editable = true }`, with `fovi` arriving transitively through its
+`[fovi]` extra). It is now `canvit/core/` in this repo, so that source is gone and `fovi` is
+declared here directly.
 
 ### Environment variables
 
@@ -149,6 +344,7 @@ one task; each task folder holds only what is specific to that task.**
 
 ```
 canvit/
+├── core/             THE MODEL — canvas ViT, patchers, HF-hub classes, probes, teacher
 ├── harness/          the entry point + every shared primitive
 │   ├── run.py        process entry point
 │   ├── cli.py        tyro CLI; task × --preset → TrainSpec
@@ -164,6 +360,16 @@ canvit/
 ├── ade20k/           ADE20K segmentation: data, metrics, rollout, viz
 ├── in1k/             ImageNet-1k: data, metrics, model, eval, rollout
 └── checkpoint/       checkpoint I/O and `to_hf` — publishing to the HF-hub layout
+```
+
+`core/` is the model and is the layer everything else sits on: `model/` (pretraining,
+classification, segmentation wrappers + the HF-hub mixin), `patcher/` (uniform, foveated,
+square), `backbone/`, `teacher/`, `probes/`, `policies/`, `policy/` (the learned scorer net),
+`viewpoint/`, `rope/`, `preprocess/`, `standardizers/`, `metrics.py`, `data/`. Nothing in
+`core/` may import from `harness/`, `distill/`, `ade20k/` or `in1k/` — one grep checks it:
+
+```bash
+grep -rn "from canvit\.\(harness\|distill\|ade20k\|in1k\)" canvit/core/
 ```
 
 The five flat files in `harness/` are the ones to read first; the subpackages are
@@ -292,20 +498,49 @@ python -m canvit.checkpoint.to_hf --pt-path <run>/checkpoints/best.pt --out-dir 
 ```
 
 It detects the checkpoint type: a `distill` checkpoint becomes the pretraining
-layout (`CanViTForPretrainingHFHub`), an `in1k` one the classifier layout that
-CanViT-eval loads.
+layout (`CanViTForPretrainingHFHub`), an `in1k` one the classifier layout
+(`CanViTForImageClassification`). Segmentation heads alone go through
+`canvit.checkpoint.probe_to_hf`.
+
+## Evaluating a checkpoint
+
+**There is one evaluation entry point**, and it shares the validation loader and the
+`evaluate` step with training-time validation, so the two cannot drift:
+
+```bash
+python -m canvit.harness.evaluate <distill|ade20k|ade20k-dinov3|in1k> \
+    --opts.ckpt <run>/checkpoints/best.pt --opts.out <out>.json --cfg.eval-policy <policy>
+```
+
+One config per invocation, one JSON artifact, and the resolved protocol recorded in every
+record. `--cfg.eval-policy` is **required** — there is no `auto` guess, because the adequate
+protocol depends on how the model was trained and is the caller's decision. Presets exist for
+the sensible ones (`fixation_grid`, `full`, `random`, `coarse_to_fine`, `fine_to_coarse`), and
+any combination of the underlying axes can still be given explicitly.
+
+A foveated model is only in-distribution at the view scale it was trained at, so pin it
+(`--cfg.foveated-scale.fixed-scale`); off-scale glimpses make the metric *fall* as glimpses
+accumulate. The command warns when the generated scales look off-distribution.
+
+Details, and every defect found while unifying the two eval paths:
+[`unification_docs/20-eval-merge.md`](unification_docs/20-eval-merge.md).
 
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest .
+.venv-cu126/bin/python -m pytest canvit
 ```
 
-The suite is CPU-only and covers the rollout engine, the specification
-resolution, the RL objectives, each task's adapter, and checkpoint round-trips.
-It includes **digest tests** that hash a short training run's loss stream and
-parameter fingerprint, so any change that perturbs training numerics fails
-loudly instead of silently.
+493 tests: the model (`canvit/core/`), the rollout engine, specification resolution, the RL
+objectives, each task's adapter, checkpoint round-trips, and the import-provenance guards.
+They run on CPU — use `.venv-cu126`, since the **digest tests** pin CPU numerics against
+hashes recorded under that torch build and a different build fails them.
+
+Those digest tests hash a short training run's loss stream *and* a fingerprint of every
+parameter after N optimizer steps, so a change that perturbs training numerics — or gradient
+flow, even where step 0's loss is untouched — fails loudly instead of silently. They are
+**pinning** digests, not a correctness claim: they assert only that today's numbers equal the
+numbers recorded when they were written.
 
 ## Further documentation
 
@@ -322,7 +557,30 @@ what they train, how to launch them, and how to judge the results:
   Not yet run end to end: every Q-policy result so far is on a uniform
   backbone.
 
-`unification_docs/` holds design notes and the generated capability matrix.
+`unification_docs/` holds design notes and the generated capability matrix. Two entries there
+are the record of how this repo came to hold everything:
+[`20-eval-merge.md`](unification_docs/20-eval-merge.md) (evaluation) and
+[`21-core-merge.md`](unification_docs/21-core-merge.md) (the model).
+
+### Other implementations
+
+- [CanViT-MLX](https://github.com/yberreby/CanViT-MLX) — MLX implementation for Apple Silicon (experimental)
+- [CanViT-NNX](https://github.com/yberreby/CanViT-NNX) — JAX/Flax NNX implementation (experimental)
+
+## Troubleshooting
+
+**Errors loading a pretrained checkpoint** usually mean the model code and the checkpoint
+disagree. Re-sync the environment (`uv sync`) so `canvit/core/` and `fovi` are current.
+
+**`ModuleNotFoundError: canvit_pytorch`** means you are running code written against the
+pre-2026-09-03 layout. The model is `canvit.core` now; the old top-level package exists only
+in the read-only `CanViT-PyTorch` clone that the pinned launchers archive from.
+
+**A pinned SLURM run using unexpected model code.** `harness_train.sbatch` prepends each
+pinned snapshot to `PYTHONPATH`, and a `CanViT-PyTorch` snapshot shadows a post-merge
+`canvit/core/`. That is correct when reproducing an old run and wrong for a new one; the
+launcher logs which package it resolved. See
+[`unification_docs/21-core-merge.md`](unification_docs/21-core-merge.md) §4.
 
 ## Citation
 
@@ -337,6 +595,10 @@ what they train, how to launch them, and how to judge the results:
   url={https://arxiv.org/abs/2603.22570}
 }
 ```
+
+## Contact
+
+Open an issue in this repository, or email me@yberreby.com.
 
 ## License
 
