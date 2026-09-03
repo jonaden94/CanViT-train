@@ -219,3 +219,108 @@ Recorded so the decision stays visible rather than assumed:
 
 Published HF checkpoints are unaffected: `config.json` records architecture only, no module
 paths (doc 20 §8, verified during the eval merge).
+
+## 8. P1 survey — measured 2026-09-03, before any edit was made
+
+Everything below was established by reading the two trees, **not** from the plan above. It is
+recorded because it cost a session's worth of surveying and because three items change what
+P1 should do.
+
+### 8.1 The CPU gate number is exact
+
+`main` @ `6d0201e`, this machine, `.venv` (cu130):
+`.venv/bin/python -m pytest canvit_train -q` → **361 passed, 4 failed, 744s**. The four are
+`test_task_digests.py`, which assert GPU-recorded hashes — §2's count confirmed rather than
+assumed. P1 must land on 361 passed with the same four failing for the same reason.
+
+### 8.2 Trap A is defused BY the rename — and this is why `uv sync` is not on P1's critical path
+
+§5 assumed the editable install could silently keep serving the old core. Checked: the three
+`.pth` files in each venv are **plain path lines adding repo ROOTS** to `sys.path` —
+`/…/repos/CanViT-PyTorch`, `/…/repos/CanViT-train`, `/…/repos/fovi`. So after the move, with
+no re-sync at all:
+
+* `canvit` resolves from the CanViT-train root, which is already on `sys.path`, and
+  `canvit.core` comes with it;
+* the stale CanViT-PyTorch root still offers the top-level name `canvit_pytorch`, but **no
+  file imports that name any more**, so it is inert, not shadowing.
+
+The trap was real only for the design that kept the name `canvit_pytorch` — there,
+alphabetical `.pth` order (`…_canvit_pytorch` before `…_canvit_train`) would have handed every
+import to the old clone with no error. **The rename the owner asked for removes the failure
+mode.** That matters practically: `uv sync` needs the network, which is not guaranteed here,
+and P1's gate is meaningful without it.
+
+Still add both tests — they cost nothing and they are the only detection if the layout changes
+again: (a) `canvit.core.__file__` resolves under this repo, (b) no file under `canvit/` imports
+`canvit_pytorch`. Leave the stale `.pth` and `canvit_pytorch-0.1.9.dist-info` alone; the next
+`uv sync` clears them.
+
+### 8.3 `_PKG` needs a third branch
+
+`slurm/harness_train.sbatch:121-124` is a two-way detect (`canvit_train`, falling back to
+`canvit_pretrain` when the pinned snapshot contains that directory). After P1 it is a
+three-way: default `canvit`, fall back to `canvit_train`, then `canvit_pretrain`. Same
+principle as before — detect from the snapshot, never hardcode.
+
+### 8.4 Rewrite scope for `canvit_train` → `canvit`
+
+**Rewrite:** the package tree (66 files), `pyproject.toml` (name, `packages`, `testpaths`,
+`per-file-ignores`), `README.md`, `slurm/README.md`, `readme_docs/q_policy_foveated.md`,
+`scripts/*.py` and `scripts/*.sh`, `slurm/harness_train.sbatch`.
+
+**Leave:** `slurm/runs/**` and `slurm/archive/**` — all 29 hits inspected, every one is a
+comment or pinned history; `unification_docs/**`; `readme_docs/verification_runs.md` (a
+record); `.gitignore:39`, where `slurm/canvit_train_state.venv-cu126` is an **archived scrap
+script's state file**, not the package.
+
+A blanket sed over the package is correct, not sloppy: the 46 non-import occurrences are
+docstrings, `monkeypatch.setattr` dotted targets, and `logging.getLogger` names — all dotted
+module paths, all of which must move.
+
+One piece of **pre-existing** rot the sed will carry over rather than fix:
+`harness/config.py:95` cites `canvit_train.train.rl.VPG`, a path deleted by the `fe35b62`
+restructure. Flagged, not touched.
+
+### 8.5 Disposition of core's non-package contents — the part §6 did not plan
+
+| core path | destination | why |
+|---|---|---|
+| `canvit_pytorch/` | `canvit/core/` | 25 top-level entries, disjoint from canvit_train's 5 |
+| `tests/` (3 files) | `canvit/core/tests/` | matches this repo's convention (`canvit/harness/tests/`, which has an `__init__.py`); keeps `testpaths` single-valued and avoids rootdir module-name collisions |
+| `test_data/` (2 images, 405K) | repo root `test_data/` | referenced by **relative** path — `tests/test_classification.py:20`, `demos/basic.py:32`, `demos/classify.py:80` — so it must sit at the rootdir and those tests only pass when pytest runs from the repo root. Pre-existing fragility, preserved deliberately. |
+| `bench/` | repo root `bench/` | the CanViT-eval benchmark adopted in `3a0dcc2`, plus its 2 baseline jsonl |
+| `demos/` (2 files) | repo root `demos/` | live examples; depend on the relative `test_data/` |
+| `assets/` (928K) | repo root `assets/` | README images |
+| `other_papers/` (1 PDF, 6.2M) | repo root `papers/` | this repo already has `papers/fourier.pdf`; one folder, not two |
+| `README.md` (260 lines) | `readme_docs/core_model.md`, linked from the front page | CanViT-train's README is the repo's front page; core's is a model/API guide, which is what `readme_docs/` is for |
+| `LICENSE.md` | drop | same MIT text and copyright line as this repo's `LICENSE` |
+| `.github/workflows/release.yml` | drop | it publishes the `canvit-pytorch` distribution; the merged package is not published |
+| `.python-version`, `.gitignore`, `uv.lock` | merge, never copy | the lock is regenerated by the sync |
+| `canvit_paper/`, `.claude/` | leave in place | untracked (14M), not git content |
+
+### 8.6 pyproject merge, concretely
+
+Core's base deps (`huggingface-hub>=1.3.2`, `numpy>=2.2.0,<2.4.0`, `torch>=2.9.0`,
+`torchvision>=0.22.0`, `safetensors>=0.7.0`) fold into `canvit`'s. Keeping the torch bounds in
+base deps **preserves the current resolution** — they were already there transitively via
+`canvit-pytorch` — while the conflicting `cuda` / `cu126` groups go on pinning the build.
+
+Core's three extras:
+
+* `fovi` → plain dep. Train always asked for `canvit-pytorch[fovi]`, so it was never optional.
+* `policy` (timm) → plain dep. **Checked: this is a no-op for the resolution** — `timm` is an
+  unconditional requirement of `fovi` (`uv.lock:1071`, `:1102`), so it is installed either
+  way. Fold it in regardless, so the dependency is declared where it is used instead of
+  inherited by accident.
+* `demo` → stays an extra, minus whatever base already covers.
+
+Core's pytest config must come along or its tests change selection: `markers = [slow,
+network]` and `addopts = "-m 'not slow'"`.
+
+### 8.7 Ordering: a GPU appeared, so P0 goes first after all
+
+The "record P0 later" arrangement in §6 existed only to work around having no GPU. One is now
+available, so the original ordering is restored: **record P0 on `main` first**, on the GPU
+that will also run P3, then branch. That removes the deferral cost §6 had to manage, and it
+respects F1 — the digests and the four eval rows are only comparable within one machine.
