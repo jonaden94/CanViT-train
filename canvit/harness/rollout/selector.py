@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import torch
-from canvit_pytorch import RecurrentState
 from torch import Tensor
 
+from canvit.core import RecurrentState
 from canvit.harness.config import FoveatedScaleConfig
 from canvit.harness.rollout.viewpoint import Viewpoint as NamedViewpoint
 from canvit.harness.rollout.viewpoint import ViewpointType, random_foveated_viewpoint, sample_view_scales

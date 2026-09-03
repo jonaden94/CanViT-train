@@ -4,11 +4,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-from canvit_pytorch import CanViTOutput
-from canvit_pytorch.viewpoint import Viewpoint, sample_at_viewpoint
 from torch import Tensor
 
 from canvit import CanViTForPretraining
+from canvit.core import CanViTOutput
+from canvit.core.viewpoint import Viewpoint, sample_at_viewpoint
 
 from .image import imagenet_denormalize_to_numpy
 

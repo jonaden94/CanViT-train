@@ -5,13 +5,13 @@ is validated on real data by the GPU resume smoke.
 """
 
 import torch
-from canvit_pytorch import CanViTForSemanticSegmentation
 from torch import nn
 
 import canvit.harness.loop as L
 from canvit.ade20k.config import Ade20kConfig
 from canvit.ade20k.data import IGNORE_LABEL, NUM_CLASSES
 from canvit.ade20k.task import Ade20kRunTask, BoundAde20kTask
+from canvit.core import CanViTForSemanticSegmentation
 from canvit.distill.config import Config
 from canvit.distill.task import DistillRunTask
 from canvit.harness.config import FoveatedScaleConfig

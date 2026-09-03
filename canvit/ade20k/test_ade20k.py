@@ -7,8 +7,9 @@ frozen backbone stays untouched."""
 
 import pytest
 import torch
-from canvit_pytorch import CanViTForSemanticSegmentation
-from canvit_pytorch.patcher import FoveatedPatcherConfig
+
+from canvit.core import CanViTForSemanticSegmentation
+from canvit.core.patcher import FoveatedPatcherConfig
 
 from ..harness.rollout.episode import consumes_full_image
 from ..harness.rollout.eval_viewpoints import make_random_viewpoints
@@ -73,7 +74,7 @@ def test_square_patcher_also_routes_the_full_image() -> None:
     square patcher take the uniform pre-crop path); the only same-seed check on it lived in
     `unification_docs/parity_configs.py`, which was an old-loop-vs-harness A/B and retired
     with `train/step.py`. Pinned here so the routing predicate keeps its second case."""
-    from canvit_pytorch import SquarePatcherConfig
+    from canvit.core import SquarePatcherConfig
 
     seg = _tiny_seg({"patcher_name": "square", "square_patcher": SquarePatcherConfig()})
     assert consumes_full_image(seg)

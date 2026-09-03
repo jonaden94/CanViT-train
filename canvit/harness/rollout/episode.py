@@ -25,11 +25,12 @@ from contextlib import nullcontext
 from typing import Any
 
 import torch
-from canvit_pytorch import CanViTOutput, sample_at_viewpoint
-from canvit_pytorch.patcher.foveated import FoveatedPatcher
-from canvit_pytorch.patcher.square import SquarePatcher
-from canvit_pytorch.viewpoint import Viewpoint
 from torch import Tensor
+
+from canvit.core import CanViTOutput, sample_at_viewpoint
+from canvit.core.patcher.foveated import FoveatedPatcher
+from canvit.core.patcher.square import SquarePatcher
+from canvit.core.viewpoint import Viewpoint
 
 __all__ = ["consumes_full_image", "derive_glimpse_px", "run_episode"]
 

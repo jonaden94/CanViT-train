@@ -13,8 +13,8 @@ import tarfile
 
 import numpy as np
 import torch
-from canvit_pytorch import CLSStandardizer, PatchStandardizer
 
+from canvit.core import CLSStandardizer, PatchStandardizer
 from canvit.distill.data.webdataset import (
     _freeze_stats,
     _MomentAcc,

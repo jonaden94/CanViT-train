@@ -20,9 +20,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from canvit_pytorch.preprocess import imagenet_denormalize
 from matplotlib.figure import Figure
 from torch import Tensor
+
+from canvit.core.preprocess import imagenet_denormalize
 
 from ..harness.viz.pca import fit_pca
 from .data import IGNORE_LABEL, NUM_CLASSES

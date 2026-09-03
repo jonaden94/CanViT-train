@@ -14,10 +14,10 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
-from canvit_pytorch import CanViTForImageClassification, RecurrentState, sample_at_viewpoint
-from canvit_pytorch.policy.features import INTRINSIC_GROUPS
 from torch import Tensor
 
+from canvit.core import CanViTForImageClassification, RecurrentState, sample_at_viewpoint
+from canvit.core.policy.features import INTRINSIC_GROUPS
 from canvit.harness.rollout import GlimpseOut, TaskLoss
 from canvit.harness.rollout.episode import consumes_full_image, derive_glimpse_px
 from canvit.harness.rollout.viewpoint import ViewpointType

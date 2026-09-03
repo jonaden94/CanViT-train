@@ -12,8 +12,9 @@ from typing import NamedTuple, Protocol
 
 import torch
 import torch.nn.functional as F
-from canvit_pytorch import CanViTOutput
 from torch import Tensor
+
+from canvit.core import CanViTOutput
 
 
 class LossOutput(NamedTuple):

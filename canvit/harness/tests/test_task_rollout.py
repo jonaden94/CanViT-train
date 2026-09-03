@@ -8,15 +8,15 @@ tested once that lands (loop phase); here we cover the task-only cells.
 """
 
 import torch
-from canvit_pytorch import (
-    CanViTForImageClassification,
-    CanViTForSemanticSegmentation,
-)
 
 from canvit import CanViTForPretraining, CanViTForPretrainingConfig
 from canvit.ade20k.data import IGNORE_LABEL, NUM_CLASSES
 from canvit.ade20k.task import POLICY_FEATURE_GROUPS as ADE_GROUPS
 from canvit.ade20k.task import BoundAde20kTask
+from canvit.core import (
+    CanViTForImageClassification,
+    CanViTForSemanticSegmentation,
+)
 from canvit.distill.loss import DistillTask
 from canvit.distill.task import BoundDistillTask
 from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
@@ -56,7 +56,7 @@ def _no_grad(module) -> bool:
 # --------------------------------------------------------------------------- #
 def _distill_model() -> CanViTForPretraining:
     torch.manual_seed(0)
-    from canvit_pytorch import create_backbone
+    from canvit.core import create_backbone
     return CanViTForPretraining(
         backbone=create_backbone("vits16"), cfg=CanViTForPretrainingConfig(teacher_dim=_D),
         glimpse_size_px=128, backbone_name="vits16", canvas_patch_grid_sizes=[_G],
@@ -412,7 +412,7 @@ def test_vpg_reward_is_the_negated_terminal_task_loss():
 # action space faithful: a pure fixation heatmap, no scale dimension, centred t0.
 # --------------------------------------------------------------------------- #
 def _seg_foveated() -> CanViTForSemanticSegmentation:
-    from canvit_pytorch.patcher import FoveatedPatcherConfig
+    from canvit.core.patcher import FoveatedPatcherConfig
 
     torch.manual_seed(0)
     return CanViTForSemanticSegmentation(
@@ -535,8 +535,7 @@ def test_feature_groups_default_is_each_tasks_own_set_bit_for_bit():
     """THE no-op proof. `rl.feature_groups` now defaults to None = 'task default', so
     making the knob real must not move any existing run: every task must still build the
     exact set it built when the field was ignored."""
-    from canvit_pytorch.policy.features import FEATURE_GROUPS, INTRINSIC_GROUPS
-
+    from canvit.core.policy.features import FEATURE_GROUPS, INTRINSIC_GROUPS
     from canvit.in1k.task import POLICY_FEATURE_GROUPS as IN1K
 
     assert JointPolicyConfig().feature_groups is None

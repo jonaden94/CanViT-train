@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from canvit_pytorch import resolve_canvit_repo
+from canvit.core import resolve_canvit_repo
 
 from ..ade20k.config import (
     ResizeMode,
@@ -155,7 +155,7 @@ class In1kConfig:
     aug_flip_prob: float = 0.5
     """Both ignored when ``augment=False``."""
     resize_mode: ResizeMode = "center_crop"
-    """Val resize. ``center_crop`` (default) is ``canvit_pytorch.preprocess`` — resize
+    """Val resize. ``center_crop`` (default) is ``canvit.core.preprocess`` — resize
     the short side, then centre-crop — and preserves geometry; ``squish`` keeps the full frame but distorts
     aspect ratio. Both work for every patcher — see Ade20kConfig.resize_mode for the
     trade-off (aspect-preserving reads better against human viewing for foveated models,

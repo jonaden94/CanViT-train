@@ -13,8 +13,9 @@ from torch import Tensor
 if TYPE_CHECKING:
     from ..config import Config
 import torch
-from canvit_pytorch.preprocess import preprocess
 from torch.utils.data import DataLoader, Dataset, Subset
+
+from canvit.core.preprocess import preprocess
 
 from .indexed_image_folder import IndexedImageFolder
 from .webdataset import WebDatasetTrainLoader

@@ -4,10 +4,10 @@ import tempfile
 from pathlib import Path
 
 import torch
-from canvit_pytorch import create_backbone
 
 from canvit import CanViTForPretraining, CanViTForPretrainingConfig
 from canvit.checkpoint import load, save
+from canvit.core import create_backbone
 
 _TEACHER_REPO = "facebook/dinov3-vits16-pretrain"
 _TEACHER_NAME = "dinov3_vits16"

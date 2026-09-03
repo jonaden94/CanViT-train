@@ -12,16 +12,16 @@ from pathlib import Path
 
 import pytest
 import tyro
-from canvit_pytorch import (
-    CanViTForImageClassification,
-    CanViTForSemanticSegmentation,
-    create_backbone,
-)
 
 from canvit import CanViTForPretraining, CanViTForPretrainingConfig
 from canvit.ade20k.config import Ade20kConfig
 from canvit.ade20k.data import NUM_CLASSES as ADE_CLASSES
 from canvit.ade20k.task import Ade20kRunTask
+from canvit.core import (
+    CanViTForImageClassification,
+    CanViTForSemanticSegmentation,
+    create_backbone,
+)
 from canvit.distill.config import Config
 from canvit.distill.task import DistillRunTask
 from canvit.harness.cli import (

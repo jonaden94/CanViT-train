@@ -11,10 +11,10 @@ import random
 from types import SimpleNamespace
 
 import torch
-from canvit_pytorch import create_backbone
 from torch import nn
 
 from canvit import CanViTForPretraining, CanViTForPretrainingConfig
+from canvit.core import create_backbone
 from canvit.harness.config import FoveatedScaleConfig
 from canvit.harness.rollout import GlimpseOut, run_rollout, sample_n_glimpses
 from canvit.harness.rollout.selector import RandomSelector

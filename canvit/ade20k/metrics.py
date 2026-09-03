@@ -10,11 +10,12 @@ from typing import Any
 
 import torch.nn as nn
 import torch.nn.functional as F
-from canvit_pytorch.metrics import mIoUAccumulator  # noqa: F401  (re-exported for this repo's consumers)
-from canvit_pytorch.policy import per_image_ce
-from canvit_pytorch.probes import SegmentationProbe
 from torch import Tensor
 from torch.optim import AdamW
+
+from canvit.core.metrics import mIoUAccumulator  # noqa: F401  (re-exported for this repo's consumers)
+from canvit.core.policy import per_image_ce
+from canvit.core.probes import SegmentationProbe
 
 from .data import IGNORE_LABEL
 

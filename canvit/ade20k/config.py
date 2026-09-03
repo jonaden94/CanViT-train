@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from canvit_pytorch import resolve_canvit_repo
-from canvit_pytorch.data.ade20k import ResizeMode  # noqa: F401  (re-exported for this repo's consumers)
+from canvit.core import resolve_canvit_repo
+from canvit.core.data.ade20k import ResizeMode  # noqa: F401  (re-exported for this repo's consumers)
 
 from ..harness.config import FoveatedScaleConfig
 from ..harness.rollout.eval_viewpoints import EvalPolicy

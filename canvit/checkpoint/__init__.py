@@ -76,7 +76,7 @@ class CheckpointData(TypedDict):
 SCALE_SENSITIVE_PATCHERS = ("foveated", "square")
 """Patchers whose out-of-distribution axis is the VIEW SCALE (``fix_size = scale * H``).
 The uniform patcher's is the glimpse crop in pixels, so a view scale recorded for it means
-nothing — mirrors ``canvit_pytorch.checkpoint_schema.SCALE_SENSITIVE_PATCHERS``."""
+nothing — mirrors ``canvit.core.checkpoint_schema.SCALE_SENSITIVE_PATCHERS``."""
 
 
 def downstream_pretrain_view_scale(*, patcher_name: str | None, foveated_scale) -> dict | None:
@@ -367,7 +367,7 @@ def load_model(
     path: Path, device: torch.device | str = "cpu",
 ) -> tuple[CanViTForPretraining, CheckpointData]:
     """Load CanViTForPretraining from checkpoint. Returns (model, checkpoint_data)."""
-    from canvit_pytorch import create_backbone
+    from canvit.core import create_backbone
 
     ckpt = load(path, device)
 

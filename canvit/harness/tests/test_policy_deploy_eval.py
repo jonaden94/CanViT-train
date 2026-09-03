@@ -16,12 +16,12 @@ from __future__ import annotations
 from dataclasses import replace
 
 import torch
-from canvit_pytorch import CanViTForImageClassification, CanViTForSemanticSegmentation
 
 from canvit.ade20k.config import Ade20kConfig
 from canvit.ade20k.data import IGNORE_LABEL, NUM_CLASSES
 from canvit.ade20k.task import POLICY_FEATURE_GROUPS as ADE_GROUPS
 from canvit.ade20k.task import Ade20kRunTask
+from canvit.core import CanViTForImageClassification, CanViTForSemanticSegmentation
 from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
 from canvit.harness.policy import build_policy
 from canvit.in1k.config import In1kConfig
@@ -120,9 +120,8 @@ def test_ade20k_policy_deploy_actually_changes_the_trajectory():
 def test_distill_deploy_viewpoints_runs_closed_loop():
     """Distill validates through core's ``forward_reduce``, which takes a precomputed
     list, so its policy path selects first and replays. This covers that selection."""
-    from canvit_pytorch import create_backbone
-
     from canvit import CanViTForPretraining, CanViTForPretrainingConfig
+    from canvit.core import create_backbone
     from canvit.distill.task import POLICY_FEATURE_GROUPS as DISTILL_GROUPS
     from canvit.distill.validate import _deploy_viewpoints
 

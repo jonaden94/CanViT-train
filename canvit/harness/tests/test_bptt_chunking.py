@@ -17,10 +17,10 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-from canvit_pytorch import create_backbone
 from torch import nn
 
 from canvit import CanViTForPretraining, CanViTForPretrainingConfig
+from canvit.core import create_backbone
 from canvit.harness.config import FoveatedScaleConfig
 from canvit.harness.rollout import GlimpseOut, run_rollout
 from canvit.harness.rollout.selector import RandomSelector

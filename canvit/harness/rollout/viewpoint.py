@@ -3,9 +3,10 @@ from enum import Enum, auto
 from typing import NamedTuple
 
 import torch
-from canvit_pytorch.policies import coarse_to_fine_viewpoints as _coarse_to_fine
-from canvit_pytorch.viewpoint import Viewpoint as CoreViewpoint
 from torch import Tensor
+
+from canvit.core.policies import coarse_to_fine_viewpoints as _coarse_to_fine
+from canvit.core.viewpoint import Viewpoint as CoreViewpoint
 
 __all__ = [
     "PixelBox",

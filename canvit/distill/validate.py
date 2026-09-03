@@ -18,14 +18,14 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
-from canvit_pytorch import CanViTOutput, CLSStandardizer, PatchStandardizer, RecurrentState
-from canvit_pytorch.backbone.vit import NormFeatures
-from canvit_pytorch.teacher import DINOv3Teacher
-from canvit_pytorch.viewpoint import Viewpoint as CanvitViewpoint
 from dinov3_in1k_probes import DINOv3LinearClassificationHead
 from torch import Tensor
 
 from canvit import CanViTForPretraining
+from canvit.core import CanViTOutput, CLSStandardizer, PatchStandardizer, RecurrentState
+from canvit.core.backbone.vit import NormFeatures
+from canvit.core.teacher import DINOv3Teacher
+from canvit.core.viewpoint import Viewpoint as CanvitViewpoint
 from canvit.harness.infra.utils import assert_shape
 
 from ..harness.infra.tracker import Tracker

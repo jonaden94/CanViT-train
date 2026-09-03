@@ -14,9 +14,9 @@ import random
 from contextlib import nullcontext
 
 import torch
-from canvit_pytorch import create_backbone
 
 from canvit import CanViTForPretraining, CanViTForPretrainingConfig
+from canvit.core import create_backbone
 from canvit.distill.loss import DistillTask
 from canvit.harness.config import FoveatedScaleConfig
 from canvit.harness.rollout import GlimpseOut, run_rollout

@@ -28,11 +28,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import webdataset as wds
-from canvit_pytorch import CLSStandardizer, PatchStandardizer
-from canvit_pytorch.preprocess import preprocess
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader
+
+from canvit.core import CLSStandardizer, PatchStandardizer
+from canvit.core.preprocess import preprocess
 
 from ...harness.infra.schedule import compute_schedule_slice, compute_shards_per_gpu
 

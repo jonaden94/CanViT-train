@@ -23,7 +23,7 @@ def _policy_rollout_cls(*, clf, images, joint, n, canvas_grid, glimpse_px, amp_c
     """Closed-loop deploy rollout: the scorer picks each glimpse by argmax from the live
     canvas. Returns the per-timestep CLS token, exactly like the open-loop
     ``rollout_cls_tokens`` it mirrors, so the accuracy code below is shared."""
-    from canvit_pytorch import sample_at_viewpoint
+    from canvit.core import sample_at_viewpoint
 
     from ..harness.rollout.episode import derive_glimpse_px
     from ..harness.rollout.eval_viewpoints import deploy_rollout_viewpoints

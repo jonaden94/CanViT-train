@@ -27,13 +27,13 @@ from types import SimpleNamespace
 from typing import Any
 
 import torch
-from canvit_pytorch.policy import (
+
+from canvit.core.policy import (
     StateEncoder,
     ViewpointScorer,
     candidate_viewpoints,
     fixation_candidates,
 )
-
 from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
 from canvit.harness.policy.joint import JointPolicy
 from canvit.harness.policy.rl import PG, VPG, Objective, QReg

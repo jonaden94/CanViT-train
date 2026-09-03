@@ -1,7 +1,8 @@
 """Image transformation utilities for visualization."""
 
-from canvit_pytorch.preprocess import imagenet_denormalize
 from torch import Tensor
+
+from canvit.core.preprocess import imagenet_denormalize
 
 
 def imagenet_denormalize_to_numpy(img: Tensor):

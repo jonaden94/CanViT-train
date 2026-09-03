@@ -4,12 +4,12 @@ import logging
 from typing import NamedTuple
 
 import torch
-from canvit_pytorch import create_backbone
-from canvit_pytorch.backbone.vit import ViTBackbone
-from canvit_pytorch.teacher import DINOv3Teacher
-from canvit_pytorch.teacher import load_teacher as _load_teacher
 
 from canvit import CanViTForPretraining
+from canvit.core import create_backbone
+from canvit.core.backbone.vit import ViTBackbone
+from canvit.core.teacher import DINOv3Teacher
+from canvit.core.teacher import load_teacher as _load_teacher
 
 from .config import Config
 
@@ -40,7 +40,7 @@ def load_student_backbone(cfg: Config, teacher: DINOv3Teacher | None = None) -> 
     if cfg.init_backbone_from_teacher:
         if teacher is None:
             raise ValueError("init_backbone_from_teacher=True but no teacher was provided.")
-        from canvit_pytorch.backbone.dinov3_init import load_dinov3_weights_into_backbone
+        from canvit.core.backbone.dinov3_init import load_dinov3_weights_into_backbone
 
         load_dinov3_weights_into_backbone(backbone, teacher.model)
         log.info(f"Student backbone: {cfg.backbone_name} (init from DINOv3 teacher, patch_stride={cfg.patch_stride})")

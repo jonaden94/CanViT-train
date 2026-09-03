@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 import torch
-from canvit_pytorch import CanViTForImageClassification
-from canvit_pytorch.patcher import FoveatedPatcherConfig
+
+from canvit.core import CanViTForImageClassification
+from canvit.core.patcher import FoveatedPatcherConfig
 
 from ..harness.rollout.episode import consumes_full_image
 from ..harness.rollout.eval_viewpoints import make_random_viewpoints

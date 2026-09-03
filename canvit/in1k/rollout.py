@@ -12,10 +12,11 @@ feeds training and evaluation.
 """
 
 import torch
-from canvit_pytorch import CanViTForImageClassification
-from canvit_pytorch.policies import coarse_to_fine_viewpoints, repeated_full_scene
-from canvit_pytorch.viewpoint import Viewpoint
 from torch import Tensor
+
+from canvit.core import CanViTForImageClassification
+from canvit.core.policies import coarse_to_fine_viewpoints, repeated_full_scene
+from canvit.core.viewpoint import Viewpoint
 
 from ..harness.config import FoveatedScaleConfig
 from ..harness.rollout.episode import run_episode

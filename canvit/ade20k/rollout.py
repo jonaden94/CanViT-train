@@ -10,9 +10,10 @@ left here is the readout — the canvas spatial features the probe head consumes
 canvas_hidden is produced (recon_normalized dropped, D3).
 """
 
-from canvit_pytorch import CanViTForSemanticSegmentation
-from canvit_pytorch.viewpoint import Viewpoint
 from torch import Tensor
+
+from canvit.core import CanViTForSemanticSegmentation
+from canvit.core.viewpoint import Viewpoint
 
 from ..harness.rollout.episode import run_episode
 

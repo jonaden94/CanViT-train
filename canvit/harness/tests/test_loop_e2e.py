@@ -8,10 +8,10 @@ dispatch are validated against the datasets separately.
 """
 
 import torch
-from canvit_pytorch import CanViTForSemanticSegmentation
 
 from canvit.ade20k.data import IGNORE_LABEL, NUM_CLASSES
 from canvit.ade20k.task import BoundAde20kTask
+from canvit.core import CanViTForSemanticSegmentation
 from canvit.harness.config import FoveatedScaleConfig
 from canvit.harness.infra.checkpoint import find_latest, load_checkpoint, restore_into
 from canvit.harness.loop import apply_requires_grad, run_training_loop

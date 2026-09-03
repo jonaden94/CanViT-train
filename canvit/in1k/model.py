@@ -8,7 +8,7 @@ point left, it belongs in a module of its own rather than inside a trainer.
 
 import logging
 
-from canvit_pytorch import CanViTForImageClassification
+from canvit.core import CanViTForImageClassification
 
 from .config import NUM_CLASSES, In1kConfig
 
@@ -22,8 +22,9 @@ def _resolve_probe_repo(cfg: In1kConfig) -> str:
     checkpoint to ``--cfg.model-repo`` would fail here, before any weights are touched."""
     if cfg.probe_repo:
         return cfg.probe_repo
-    from canvit_pytorch.model_source import read_backbone_name
     from dinov3_in1k_probes.repos import probe_repo
+
+    from canvit.core.model_source import read_backbone_name
 
     backbone = read_backbone_name(cfg.model_repo)
     if backbone is None:

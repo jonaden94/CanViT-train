@@ -28,7 +28,8 @@ from pathlib import Path
 
 import torch
 import tyro
-from canvit_pytorch.probes import SegmentationProbe
+
+from canvit.core.probes import SegmentationProbe
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")

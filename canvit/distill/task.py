@@ -19,10 +19,10 @@ from contextlib import nullcontext
 from typing import Any
 
 import torch
-from canvit_pytorch import RecurrentState
-from canvit_pytorch.policy.features import INTRINSIC_GROUPS
 from torch import Tensor
 
+from canvit.core import RecurrentState
+from canvit.core.policy.features import INTRINSIC_GROUPS
 from canvit.distill.loss import DistillTask
 from canvit.harness.rollout import GlimpseOut
 from canvit.harness.rollout.viewpoint import ViewpointType
@@ -165,7 +165,7 @@ class DistillRunTask:
                             self.cfg.model.canvas_update_mode, ckpt_cfg.canvas_update_mode)
             self.cfg.model = ckpt_cfg
         elif self.cfg.hf_seed_ckpt:
-            from canvit_pytorch.model.pretraining.hub import CanViTForPretrainingHFHub
+            from canvit.core.model.pretraining.hub import CanViTForPretrainingHFHub
             log = __import__("logging").getLogger(__name__)
             log.info("HF SEED mode: loading %s", self.cfg.hf_seed_ckpt)
             hf_model = CanViTForPretrainingHFHub.from_pretrained(self.cfg.hf_seed_ckpt)
@@ -337,7 +337,7 @@ class DistillRunTask:
     def _teacher_targets(self, images, sz):
         """Frozen-teacher features for RAW shards (the on-the-fly path). Resizes to the
         scene resolution first, exactly like train/loop.py's ``compute_raw_targets``."""
-        from canvit_pytorch.backbone.vit import NormFeatures
+        from canvit.core.backbone.vit import NormFeatures
         teacher = self._teacher_for_forward(self._device)
         amp = (torch.autocast("cuda", dtype=torch.bfloat16)
                if self._device.type == "cuda" else nullcontext())
@@ -555,8 +555,7 @@ class DistillRunTask:
         import tempfile
         from pathlib import Path
 
-        from canvit_pytorch.backbone.vit import NormFeatures
-
+        from canvit.core.backbone.vit import NormFeatures
         from canvit.distill.probe import load_probe
         from canvit.distill.validate import validate
         from canvit.harness.infra.tracker import make_tracker

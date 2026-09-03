@@ -85,9 +85,8 @@ def print_info(path: Path) -> None:
 
 def smoke_test(path: Path) -> None:
     """Load model from checkpoint, run one forward pass with dummy input."""
-    from canvit_pytorch.viewpoint import Viewpoint
-
     from canvit.checkpoint import load_model
+    from canvit.core.viewpoint import Viewpoint
 
     print("\n--- smoke test ---")
     print("loading model...", end=" ", flush=True)

@@ -9,7 +9,7 @@
 Single entry point: ``python -m canvit.harness.run <task> --preset <preset>``.
 """
 
-from canvit_pytorch.model.pretraining import CanViTForPretraining, CanViTForPretrainingConfig
+from canvit.core.model.pretraining import CanViTForPretraining, CanViTForPretrainingConfig
 
 __all__ = [
     "CanViTForPretraining",

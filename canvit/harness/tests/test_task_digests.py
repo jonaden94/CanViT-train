@@ -31,10 +31,10 @@ import hashlib
 from contextlib import nullcontext
 
 import torch
-from canvit_pytorch import CanViTForImageClassification, CanViTForSemanticSegmentation
 
 from canvit.ade20k.data import IGNORE_LABEL, NUM_CLASSES
 from canvit.ade20k.task import BoundAde20kTask
+from canvit.core import CanViTForImageClassification, CanViTForSemanticSegmentation
 from canvit.harness.config import FoveatedScaleConfig
 from canvit.harness.rollout import run_rollout
 from canvit.harness.rollout.selector import RandomSelector

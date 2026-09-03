@@ -19,12 +19,12 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
-from canvit_pytorch import CanViTForSemanticSegmentation, RecurrentState, sample_at_viewpoint
-from canvit_pytorch.policy.features import FEATURE_GROUPS
 from torch import Tensor
 
 from canvit.ade20k.data import IGNORE_LABEL
 from canvit.ade20k.metrics import ce_loss
+from canvit.core import CanViTForSemanticSegmentation, RecurrentState, sample_at_viewpoint
+from canvit.core.policy.features import FEATURE_GROUPS
 from canvit.harness.rollout import GlimpseOut, TaskLoss
 from canvit.harness.rollout.episode import consumes_full_image, derive_glimpse_px
 from canvit.harness.rollout.viewpoint import ViewpointType

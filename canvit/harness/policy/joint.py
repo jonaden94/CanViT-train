@@ -21,15 +21,15 @@ from types import SimpleNamespace
 
 import torch
 import torch.distributed as dist
-from canvit_pytorch.policy import (
+from torch import Tensor
+
+from canvit.core.policy import (
     StateEncoder,
     ViewpointScorer,
     candidate_viewpoints,
     fixation_candidates,
 )
-from canvit_pytorch.policy.features import INTRINSIC_GROUPS
-from torch import Tensor
-
+from canvit.core.policy.features import INTRINSIC_GROUPS
 from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
 from canvit.harness.policy.rl import (
     PG,

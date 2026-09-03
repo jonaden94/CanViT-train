@@ -14,10 +14,9 @@ cannot disagree with the weights.
 
 from types import SimpleNamespace
 
-from canvit_pytorch.model.base.config import CanViTConfig
-
 from canvit.ade20k.config import Ade20kConfig
 from canvit.ade20k.task import Ade20kRunTask
+from canvit.core.model.base.config import CanViTConfig
 from canvit.in1k.config import In1kConfig
 from canvit.in1k.task import In1kRunTask
 

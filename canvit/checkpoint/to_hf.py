@@ -35,15 +35,16 @@ from typing import Any
 
 import torch
 import tyro
-from canvit_pytorch.checkpoint_schema import (
+from safetensors.torch import save_file
+
+from canvit.core.checkpoint_schema import (
     SCALE_SENSITIVE_PATCHERS,
     extract_pretrain_view_scale,
     normalize_schema,
 )
-from canvit_pytorch.checkpoint_schema import (
+from canvit.core.checkpoint_schema import (
     migrate_standardizers_in_place as _migrate_standardizers_in_place,
 )
-from safetensors.torch import save_file
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -136,7 +137,7 @@ def read_pretraining_provenance(
     scale (its out-of-distribution axis is the glimpse crop in pixels), and an
     undeterminable one is not the same as a known 1.0.
     """
-    from canvit_pytorch.model_source import read_pretrain_metadata
+    from canvit.core.model_source import read_pretrain_metadata
 
     mc = raw.get("model_config") or {}
     md = raw.get("metadata") or {}
@@ -218,7 +219,7 @@ def classifier_to_hf(raw: dict, out_dir: Path, pt_path: Path) -> None:
     ``from_pretrained_with_probe``, but the *architecture* either constructor produces is
     identical (LN(D) -> Linear(D, n_classes)) — only the init differs, and we load over it.
     """
-    from canvit_pytorch import CanViTForImageClassification
+    from canvit.core import CanViTForImageClassification
 
     mc = raw["model_config"]
     repo, n_classes = mc["model_repo"], mc["n_classes"]

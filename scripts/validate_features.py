@@ -17,8 +17,9 @@ import torch
 
 # Import exact same dataset class as export
 sys.path.insert(0, str(Path(__file__).parent))
-from canvit_pytorch.teacher import load_teacher
 from export_in21k_features import ImageDataset
+
+from canvit.core.teacher import load_teacher
 
 
 def compare(name: str, a: torch.Tensor, b: torch.Tensor) -> None:

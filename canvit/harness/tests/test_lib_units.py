@@ -1,10 +1,10 @@
 """Tests for the shared training library (harness) + distill data/viz leaves."""
 
 import torch
-from canvit_pytorch.preprocess import preprocess
 from PIL import Image
 from torch import Tensor
 
+from canvit.core.preprocess import preprocess
 from canvit.distill.data import (
     MAX_CONSECUTIVE_FAILURES,
     InfiniteLoader,

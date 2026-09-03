@@ -22,13 +22,13 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
-from canvit_pytorch.metrics import mIoUAccumulator
-from canvit_pytorch.model_source import load_segmentation_probe
-from canvit_pytorch.teacher import load_teacher
 
 from canvit.ade20k.config import Ade20kConfig
 from canvit.ade20k.data import IGNORE_LABEL, NUM_CLASSES, make_ade20k_val_loader
 from canvit.ade20k.metrics import eval_probe_on_batch
+from canvit.core.metrics import mIoUAccumulator
+from canvit.core.model_source import load_segmentation_probe
+from canvit.core.teacher import load_teacher
 
 log = logging.getLogger(__name__)
 

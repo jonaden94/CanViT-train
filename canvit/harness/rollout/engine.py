@@ -36,9 +36,9 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
 
 import torch
 import torch.distributed as dist
-from canvit_pytorch import RecurrentState, Viewpoint
 from torch import Tensor
 
+from canvit.core import RecurrentState, Viewpoint
 from canvit.harness.rollout.selector import RandomSelector, Selector
 from canvit.harness.rollout.viewpoint import Viewpoint as NamedViewpoint
 from canvit.harness.rollout.viewpoint import ViewpointType

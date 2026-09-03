@@ -32,7 +32,8 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
-from canvit_pytorch.viewpoint import Viewpoint
+
+from canvit.core.viewpoint import Viewpoint
 
 log = logging.getLogger(__name__)
 
@@ -152,8 +153,7 @@ def make_random_viewpoints(
     configs import ``EvalPolicy`` from here, so a module-level ``harness.config`` import
     would close a cycle.
     """
-    from canvit_pytorch.policies import random_viewpoints
-
+    from canvit.core.policies import random_viewpoints
     from canvit.harness.config import FoveatedScaleConfig
     from canvit.harness.rollout.selector import RandomSelector
     from canvit.harness.rollout.viewpoint import ViewpointType
@@ -270,13 +270,12 @@ def open_loop_viewpoints(
     ``HISTORICAL_DEFAULTS["in1k"]`` sends foveated runs to C2F unpinned on purpose (see
     that table's notes), and silently pinning would make exp25/exp29 non-comparable.
     """
-    from canvit_pytorch.policies import fine_to_coarse_viewpoints, repeated_full_scene
-
+    from canvit.core.policies import fine_to_coarse_viewpoints, repeated_full_scene
     from canvit.harness.rollout.viewpoint import make_eval_viewpoints, make_eval_viewpoints_foveated
 
     def _pin(vps: list[Viewpoint]) -> list[Viewpoint]:
         # `replace` rather than `Viewpoint(...)`: the generators return two different
-        # Viewpoint classes (the harness one carries a debugging `name`, canvit_pytorch's
+        # Viewpoint classes (the harness one carries a debugging `name`, canvit.core's
         # does not), so naming fields here would break for one of them.
         if override_scale is None:
             return vps
@@ -444,7 +443,7 @@ class EntropyGuidedC2F:
 
     def __init__(self, *, seg: Any, batch_size: int, device: Any, canvas_grid: int,
                  n_levels: int = 3) -> None:
-        from canvit_pytorch.policies import level_viewpoints
+        from canvit.core.policies import level_viewpoints
 
         self.seg, self.B, self.device, self.canvas_grid = seg, batch_size, device, canvas_grid
         self.levels = [level_viewpoints(lvl) for lvl in range(n_levels)]
@@ -459,7 +458,7 @@ class EntropyGuidedC2F:
     def _entropy(self, state: Any) -> Any:
         """Per-cell probe entropy [B, G, G]. fp32 via ``head_logits`` (which disables
         autocast), so the ranking does not depend on the caller's amp context."""
-        from canvit_pytorch.policy import entropy_from_logits, head_logits
+        from canvit.core.policy import entropy_from_logits, head_logits
 
         return entropy_from_logits(
             head_logits(self.seg, state.canvas, canvas_grid=self.canvas_grid)).float()

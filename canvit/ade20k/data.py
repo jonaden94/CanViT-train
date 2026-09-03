@@ -5,22 +5,11 @@ Faithful port of canvit_specialize's datasets/ade20k.py + training/ade20k/common
 optimization are kept identical). This is the ONE train-time ADE20K pipeline of
 the unified repo (master plan §3 — the specialize/RL duplicates retire with
 their repos); validation-protocol comparability is anchored by the squish resize in
-``canvit_pytorch.data.ade20k.make_val_transforms``, which every ADE20K number in this
+``canvit.core.data.ade20k.make_val_transforms``, which every ADE20K number in this
 project — published, specialize-era and current — was measured under.
 """
 
 import torch
-
-# ADE20K dataset + val transforms + label constants are the shared val-protocol
-# primitives; they live in core (canvit_pytorch) so CanViT-eval uses the exact
-# same definitions without depending on this training package. Re-exported here
-# so this repo's own consumers keep importing them from `.data`.
-from canvit_pytorch.data.ade20k import (  # noqa: F401  (re-exported)
-    IGNORE_LABEL,
-    NUM_CLASSES,
-    ADE20kDataset,
-    make_val_transforms,
-)
 from dinov3.eval.segmentation.schedulers import WarmupOneCycleLR
 from dinov3.eval.segmentation.transforms import make_segmentation_train_transforms
 from PIL import Image
@@ -28,6 +17,17 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
+
+# ADE20K dataset + val transforms + label constants are the shared val-protocol
+# primitives; they live in core (canvit.core) so CanViT-eval uses the exact
+# same definitions without depending on this training package. Re-exported here
+# so this repo's own consumers keep importing them from `.data`.
+from canvit.core.data.ade20k import (  # noqa: F401  (re-exported)
+    IGNORE_LABEL,
+    NUM_CLASSES,
+    ADE20kDataset,
+    make_val_transforms,
+)
 
 from .config import Ade20kConfig
 
