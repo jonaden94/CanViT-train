@@ -8,7 +8,7 @@ for the foveated footgun). The policy (scorer + reward standardizers + PG dual) 
 in a ``.policy.pt`` sidecar, schema-independent of the main file.
 
 **Never touches the network.** Training writes local files only — exactly as
-CanViT-train/specialize do today. HF publishing stays a separate, manual
+this repo and the retired specialize repo do. HF publishing stays a separate, manual
 ``python -m canvit.checkpoint.to_hf`` step (owner decision D-G).
 """
 

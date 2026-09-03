@@ -209,7 +209,7 @@ Two repos are live:
 ```
 repos/
 ├── fovi/               # foveated-vision library: cortical-magnification patch geometry
-└── CanViT-train/       # this repo: the model + all training + all evaluation
+└── canvit/             # this repo: the model + all training + all evaluation
 ```
 
 The dependency direction is `fovi` → this repo. Each has its **own** uv-managed virtual

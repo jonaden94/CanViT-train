@@ -1,4 +1,4 @@
-"""Convert a CanViT-train ``.pt`` checkpoint into the local HF Hub layout that
+"""Convert a canvit ``.pt`` checkpoint into the local HF Hub layout that
 ``CanViTForPretrainingHFHub.from_pretrained(<dir>)`` reads.
 
 Ported from the (now-archived) ``CanViT-specialize/scripts/pretrain_ckpt_to_hf_format.py``

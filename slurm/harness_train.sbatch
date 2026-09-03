@@ -91,10 +91,10 @@ fi
 if [ -n "${TRAIN_COMMIT:-}" ] || [ -n "${PYTORCH_COMMIT:-}" ] || [ -n "${FOVI_COMMIT:-}" ]; then
     mkdir -p "$_CODE_DIR"
     if [ -n "${TRAIN_COMMIT:-}" ]; then
-        mkdir -p "$_CODE_DIR/CanViT-train"
-        git -C "$_REPO_BASE/CanViT-train" archive "$TRAIN_COMMIT" \
-            | tar -x -C "$_CODE_DIR/CanViT-train"
-        export PYTHONPATH="$_CODE_DIR/CanViT-train${PYTHONPATH:+:$PYTHONPATH}"
+        mkdir -p "$_CODE_DIR/canvit"
+        git -C "$_REPO_BASE/canvit" archive "$TRAIN_COMMIT" \
+            | tar -x -C "$_CODE_DIR/canvit"
+        export PYTHONPATH="$_CODE_DIR/canvit${PYTHONPATH:+:$PYTHONPATH}"
         log "Pinned canvit → $TRAIN_COMMIT"
     fi
     if [ -n "${PYTORCH_COMMIT:-}" ]; then
@@ -120,7 +120,7 @@ fi
 # No pin => no snapshot => the venv's editable install, which is always the current name.
 _PKG=canvit
 for _cand in canvit_train canvit_pretrain; do
-    if [ -d "$_CODE_DIR/CanViT-train/$_cand" ]; then
+    if [ -d "$_CODE_DIR/canvit/$_cand" ]; then
         _PKG=$_cand
         log "Pinned snapshot carries $_cand/ → entry point is $_PKG.harness.run"
         break
@@ -140,7 +140,7 @@ done
 # `canvit/core/`, because the two use different top-level names. PYTHONPATH order is
 # irrelevant here.
 if [ "$_PKG" = canvit ]; then
-    # Post-merge snapshot: the model is canvit/core/ inside the CanViT-train snapshot.
+    # Post-merge snapshot: the model is canvit/core/ inside the canvit snapshot.
     if [ -n "${PYTORCH_COMMIT:-}" ]; then
         log "WARNING: PYTORCH_COMMIT=$PYTORCH_COMMIT has NO EFFECT on this job."
         log "         The pinned TRAIN_COMMIT is post-core-merge, so the model comes from"
