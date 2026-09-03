@@ -22,6 +22,7 @@ checkpoints/
 *.png
 # ...except figures embedded in the documentation, which have to ship with it
 !readme_docs/assets/*.png
+!assets/*.png
 
 # macOS
 *.DS_Store
@@ -39,3 +40,6 @@ plan_dataloading/
 slurm/canvit_train_state.venv-cu126/
 .venv-cu126/
 papers
+
+# bench/pt writes fresh timing runs here; only baselines/ is committed
+bench/pt/results/

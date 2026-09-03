@@ -43,10 +43,17 @@ def test_core_and_canvit_are_the_same_tree() -> None:
     )
 
 
+# Every tree in the repo that holds LIVE code. Deliberately excludes unification_docs/,
+# whose one-shot gate drivers are dated records of what ran against the old layout, and
+# slurm/runs + slurm/archive, whose launchers pin pre-merge commits on purpose.
+_LIVE_TREES = ("canvit", "bench", "demos", "scripts")
+
+
 def test_no_source_file_imports_the_retired_name() -> None:
-    """Nothing under ``canvit/`` may import ``canvit_pytorch``; that name is the shadow."""
+    """No live tree may import ``canvit_pytorch``; that name is the shadow."""
     offenders = []
-    for path in sorted((_REPO_ROOT / "canvit").rglob("*.py")):
+    paths = sorted(q for tree in _LIVE_TREES for q in (_REPO_ROOT / tree).rglob("*.py"))
+    for path in paths:
         if path == Path(__file__).resolve():
             continue
         for lineno, line in enumerate(path.read_text().splitlines(), 1):
