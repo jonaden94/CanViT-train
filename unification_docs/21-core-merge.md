@@ -416,3 +416,71 @@ holds **56**. Stage 4 of the eval merge widened `distill/validate.py` from retur
 is a strict superset — `val_metric` is still there and is the row compared above.
 
 **P0 is complete, so the §6 precondition is satisfied and P1 may proceed.**
+
+## 10 — P1, P2, P3 EXECUTED 2026-09-03. The merge is done and proven.
+
+Branch `phase2-core-merge`, six commits, each with its own gate:
+
+| commit | what | gate |
+|---|---|---|
+| `3d7eb1f` | P1a rename `canvit_train` → `canvit` | 365 passed; ruff identical to `main` |
+| `479507b` | P1b core → `canvit/core/` | 493 = 365 + 125 + 3 |
+| `75f4f70` | P1c bench / demos / assets | 493 + `--help` on all 5 imported scripts |
+| `04ef06f` | P1d README merged into the front page | links resolve; examples executed |
+| `ba6ed9c` | P2 pinning across the merge line | 3-case archive gate |
+| `991bd32` | P3 the numeric gate | **82 scalars, 0 violations, worst diff 0.000e+00** |
+
+**P3 is the headline: the merge moved no number.** Not within tolerance — exactly zero, on
+all 82 scalars, with the resolved `protocol` block matching on all four rows as well.
+Distill's 56 were allowed 1e-5 and did not need it. Re-runnable:
+`phase2_baseline/{run_p3.sh,compare.py}`.
+
+### 10.1 Four defects found by executing this, none of which had corrupted a result
+
+1. **`unification_docs/capability_matrix.py` is live tooling**, executed by
+   `test_capability_matrix.py`. §8.4's rule "`unification_docs/**` keeps the old name" was
+   wrong for it, and the P1a gate caught it. Same class as `slurm/submit.sh` and three lines
+   of `readme_docs/verification_runs.md`: a *record* may still contain a *live pointer*, and
+   the distinction is per-line, not per-file.
+2. **Core's README Quickstart was broken.** `CanViTForPretrainingHFHub.forward` takes
+   keyword-only `image=`; the README called `model(glimpse=...)` at both sites. Verified by
+   running it — `TypeError: ... unexpected keyword argument 'glimpse'`. The classification
+   and segmentation examples were right, because those wrappers really do take `glimpse=`.
+   **Third instance of this exact rot**, after `bench/pt` (`3a0dcc2`) and canvit_eval's
+   episodes, which is enough to call it a pattern: the pretraining/downstream signature
+   asymmetry is a trap, and the README now says so out loud.
+3. **Two `.gitignore` rules were needed and both would have failed silently** —
+   `!assets/*.png` (else `git add assets` drops the hero image and the README renders a
+   broken link) and `bench/pt/results/`.
+4. **`git mv` on a directory carries untracked `__pycache__` with it**, and because it
+   preserves mtimes, Python kept using stale `.pyc` for every file the rename did not
+   rewrite — bytecode whose `co_filename` pointed at `canvit_train/`, a path that no longer
+   existed. No behavioural effect; tracebacks pointed at phantom files. Purge
+   `__pycache__` after any package rename.
+
+### 10.2 Three things §4–§8 got wrong, corrected in place
+
+* **§4's pinning hazard does not exist.** It predicted an old `CanViT-PyTorch` snapshot
+  *shadowing* a post-merge `canvit/core/`, and asked the launcher to "name which core
+  actually wins". Impossible: the top-level names differ (`canvit.core` vs
+  `canvit_pytorch`), so `PYTHONPATH` order is irrelevant. P2's case B proves the old path
+  still resolves the old core from its own snapshot. The two hazards that *do* exist are
+  both silent losses of reproducibility and are now stated by the launcher — see `ba6ed9c`.
+* **§8.6 on torch.** Adding `torch`/`torchvision` to base deps would risk uv resolving them
+  from two indexes, since the `cuda`/`cu126` groups are a declared conflicting pair with
+  per-group index pinning. Omitted instead, which changes the effective resolution not at
+  all: those groups already floor torch above core's `>=2.9.0`.
+* **§8.5 on core's README** (and, separately, on `papers/`, which `.gitignore:41` ignores
+  outright, so that row was moot on both sides).
+
+### 10.3 What is left
+
+**P4 only** — archive the `CanViT-PyTorch` clone with an `ARCHIVED.md`, and rename the repo
+`CanViT-train` → `canvit`. §7 already records that P4 is separable: P0–P3 deliver the merge,
+and P4 buys a name at the cost of the largest mechanical change in the phase (it invalidates
+`_REPO_BASE`-relative paths in the sbatch and the `cd "$(dirname ...)/../../.."` idiom in
+every `slurm/runs/*.sh`, ~116 files).
+
+Also outstanding, deliberately not done here: the session-level `CLAUDE.md` still describes
+six repos with `CanViT-PyTorch`/`canvit_pytorch` as the model. One edit can cover that and
+the rename together, so it belongs with P4.
