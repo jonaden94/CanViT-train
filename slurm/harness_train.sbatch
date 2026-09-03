@@ -6,7 +6,7 @@
 #SBATCH -C inet                  # required for HuggingFace Hub access
 #SBATCH --delay-boot=1
 #
-# Unified-harness training launcher: the `python -m canvit_train.harness.run`
+# Unified-harness training launcher: the `python -m canvit.harness.run`
 # counterpart of base_train.sbatch. ONE script for all three tasks — the task is
 # chosen by the TASK env var (distill | ade20k | in1k), which is the whole point
 # of the harness.
@@ -80,11 +80,11 @@ TRAIN_COMMIT="${TRAIN_COMMIT:-${PRETRAIN_COMMIT:-}}"
 # Say so LOUDLY when this repo is not pinned. Running unpinned is legal (it is what you want
 # for a quick test), but it is indistinguishable in the log from a pin that silently failed
 # to arrive -- which is exactly what happened when TRAIN_COMMIT was set in a launcher but
-# left out of its `export` list: the variable never reached the job, canvit_train ran from
+# left out of its `export` list: the variable never reached the job, canvit ran from
 # the editable install, and the log simply had no line about it. Absence of evidence read as
 # evidence of absence. Now it is stated either way.
 if [ -z "${TRAIN_COMMIT:-}" ]; then
-    log "WARNING: canvit_train is NOT pinned (no TRAIN_COMMIT) -- this job will use the"
+    log "WARNING: canvit is NOT pinned (no TRAIN_COMMIT) -- this job will use the"
     log "         venv's editable install, so later edits to the clone CAN change it."
 fi
 
@@ -95,7 +95,7 @@ if [ -n "${TRAIN_COMMIT:-}" ] || [ -n "${PYTORCH_COMMIT:-}" ] || [ -n "${FOVI_CO
         git -C "$_REPO_BASE/CanViT-train" archive "$TRAIN_COMMIT" \
             | tar -x -C "$_CODE_DIR/CanViT-train"
         export PYTHONPATH="$_CODE_DIR/CanViT-train${PYTHONPATH:+:$PYTHONPATH}"
-        log "Pinned canvit_train → $TRAIN_COMMIT"
+        log "Pinned canvit → $TRAIN_COMMIT"
     fi
     if [ -n "${PYTORCH_COMMIT:-}" ]; then
         mkdir -p "$_CODE_DIR/CanViT-PyTorch"
@@ -112,17 +112,20 @@ if [ -n "${TRAIN_COMMIT:-}" ] || [ -n "${PYTORCH_COMMIT:-}" ] || [ -n "${FOVI_CO
     fi
 fi
 
-# The package was renamed canvit_pretrain -> canvit_train on 2026-07-31. This launcher is
-# shared between NEW runs (post-rename code, package canvit_train) and the exp23/exp27
-# arms, which pin PRE-rename commits whose git-archive snapshot still contains
-# canvit_pretrain/. Hardcoding either name silently breaks half of them, so derive it from
-# what the snapshot actually holds. No pin => no snapshot => the venv's editable install,
-# which is always the current name.
-_PKG=canvit_train
-if [ -d "$_CODE_DIR/CanViT-train/canvit_pretrain" ]; then
-    _PKG=canvit_pretrain
-    log "Pinned commit predates the canvit_train rename → entry point is $_PKG.harness.run"
-fi
+# The package has been renamed TWICE: canvit_pretrain -> canvit_train (2026-07-31, harness
+# consolidation) and canvit_train -> canvit (2026-09-03, the core merge). This launcher is
+# shared between NEW runs and the exp23/exp27/exp28/exp32 arms, which pin PRE-rename commits
+# whose git-archive snapshot still carries the older package directory. Hardcoding any one
+# name silently breaks the others, so derive it from what the snapshot actually holds.
+# No pin => no snapshot => the venv's editable install, which is always the current name.
+_PKG=canvit
+for _cand in canvit_train canvit_pretrain; do
+    if [ -d "$_CODE_DIR/CanViT-train/$_cand" ]; then
+        _PKG=$_cand
+        log "Pinned snapshot carries $_cand/ → entry point is $_PKG.harness.run"
+        break
+    fi
+done
 
 export TORCHINDUCTOR_CACHE_DIR="$TMPDIR/torchinductor"
 export TRITON_CACHE_DIR="$TMPDIR/triton"

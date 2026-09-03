@@ -39,12 +39,12 @@ OUT = Path(__file__).with_name("capability_matrix.md")
 
 def _tasks():
     """Construct each RunTask from its default config. No model, no GPU, no data."""
-    from canvit_train.ade20k.config import Ade20kConfig
-    from canvit_train.ade20k.task import Ade20kRunTask
-    from canvit_train.distill.config import Config
-    from canvit_train.distill.task import DistillRunTask
-    from canvit_train.in1k.config import In1kConfig
-    from canvit_train.in1k.task import In1kRunTask
+    from canvit.ade20k.config import Ade20kConfig
+    from canvit.ade20k.task import Ade20kRunTask
+    from canvit.distill.config import Config
+    from canvit.distill.task import DistillRunTask
+    from canvit.in1k.config import In1kConfig
+    from canvit.in1k.task import In1kRunTask
 
     return [
         ("distill", Config, lambda c: DistillRunTask(c)),
@@ -130,8 +130,8 @@ def _head_construction(task) -> str:
 
 
 def render() -> str:
-    from canvit_train.harness.cli import resolve_spec
-    from canvit_train.harness.spec import check_spec
+    from canvit.harness.cli import resolve_spec
+    from canvit.harness.spec import check_spec
 
     presets = ["default", "probe", "finetune", "policy_only", "joint"]
     out: list[str] = [

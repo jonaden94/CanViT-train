@@ -96,9 +96,9 @@ def measure_baselines(eval_batch_size: int, num_workers: int, n_untrained_seeds:
                       limit_val_batches: int | None) -> dict:
     import torch
 
-    from canvit_train.ade20k.config import Ade20kConfig
-    from canvit_train.ade20k.task import Ade20kRunTask
-    from canvit_train.harness.config import JointPolicyConfig
+    from canvit.ade20k.config import Ade20kConfig
+    from canvit.ade20k.task import Ade20kRunTask
+    from canvit.harness.config import JointPolicyConfig
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     out: dict[str, list] = {}

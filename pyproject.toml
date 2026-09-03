@@ -1,5 +1,5 @@
 [project]
-name = "canvit-train"
+name = "canvit"
 version = "0.1.0"
 description = "CanViT training: distillation pretraining, ADE20K/IN1k probes and finetunes, and viewpoint-policy RL, behind one harness"
 authors = [{ name = "Yohaï-Eliel BERREBY", email = "me@yberreby.com" }]
@@ -34,7 +34,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["canvit_train"]
+packages = ["canvit"]
 
 [tool.uv]
 default-groups = ["dev", "cuda"]
@@ -89,7 +89,7 @@ cu126 = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["canvit_train"]
+testpaths = ["canvit"]
 python_files = ["test.py", "test_*.py"]
 
 [tool.ruff]
@@ -102,7 +102,7 @@ select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 # Harness entry point: sets MPLCONFIGDIR + Agg before matplotlib is imported (DDP-safety).
-"canvit_train/harness/run.py" = ["E402"]
+"canvit/harness/run.py" = ["E402"]
 
 [tool.basedpyright]
 typeCheckingMode = "standard"

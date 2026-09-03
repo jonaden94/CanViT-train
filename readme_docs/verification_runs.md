@@ -234,7 +234,7 @@ bash scripts/eval_ade20k_c2f.sh jon_exp34_ade20k_probe        # -> logs/<group>/
 ```
 
 One GPU, ~10 min for all four (measured on a MIG `3g.40gb` A100 slice with 12 CPUs). The
-script loops the four arms through `python -m canvit_train.harness.evaluate ade20k`, which rebuilds each
+script loops the four arms through `python -m canvit.harness.evaluate ade20k`, which rebuilds each
 model through the ADE20K task and loads the probe's `best.pt` into it — no HF export step.
 Full ADE20K val (2000 images), `squish-512`, `canvas_grid 32`, batch 16, each arm against
 the backbone its probe was trained on. The two FOVEATED arms add
@@ -390,8 +390,8 @@ seg = load_segmentation("logs/jon_exp34_ade20k_probe/<run>/checkpoints/best.pt")
 ```
 
 An exp34 checkpoint also works directly as `--cfg.probe-repo` for a policy run, with no
-conversion. Publishing goes through `canvit_train.checkpoint.to_hf` (whole models) or
-`canvit_train.checkpoint.probe_to_hf` (the segmentation head alone).
+conversion. Publishing goes through `canvit.checkpoint.to_hf` (whole models) or
+`canvit.checkpoint.probe_to_hf` (the segmentation head alone).
 
 exp32's pretraining checkpoints always carried their full architecture, which is why `to_hf`
 accepts them and refuses the others.

@@ -38,7 +38,7 @@ The split is **which interface a launcher drives**, not how old it is:
 
 | | drives | usable as a template? |
 |---|---|---|
-| `runs/` | `canvit_train.harness.run` — the current single entry point | **yes**, bump the pins |
+| `runs/` | `canvit.harness.run` — the current single entry point | **yes**, bump the pins |
 | `archive/` | `canvit_pretrain.{train,ade20k,in1k,ade20k.rl_train}` — entry points **deleted** in the 2026-07-31 consolidation | no — reproduction only |
 
 `archive/` still *works*: each launcher pins a pre-consolidation commit, and `git archive`
@@ -58,5 +58,5 @@ splitting a pair across `runs/`/`archive/` would destroy the comparison's legibi
 arms reference `archive/base_train.sbatch` explicitly.
 
 `harness_train.sbatch` is shared between new runs and the pre-rename pinned arms in `exp23`
-/ `exp27`, so it **detects** whether the snapshot contains `canvit_train` or
+/ `exp27`, so it **detects** whether the snapshot contains `canvit` or
 `canvit_pretrain` and dispatches accordingly — see `_PKG` in that file.

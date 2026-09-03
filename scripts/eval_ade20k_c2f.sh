@@ -52,7 +52,7 @@ for entry in "${RUNS[@]}"; do
     # eval-batch-size is pinned to 16 rather than left at the config default of 32: C2F
     # shuffles within each quadtree level, so the batch size changes the RNG pattern and
     # this script's earlier outputs were taken at 16.
-    $PY -m canvit_train.harness.evaluate ade20k \
+    $PY -m canvit.harness.evaluate ade20k \
         --opts.ckpt "logs/$GROUP/$run/checkpoints/best.pt" \
         --opts.out "$OUT/$run.json" \
         --cfg.model-repo "$SRC/$repo" \

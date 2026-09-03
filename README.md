@@ -148,7 +148,7 @@ One rule: **`harness/` holds the entry point and everything shared by more than
 one task; each task folder holds only what is specific to that task.**
 
 ```
-canvit_train/
+canvit/
 ├── harness/          the entry point + every shared primitive
 │   ├── run.py        process entry point
 │   ├── cli.py        tyro CLI; task × --preset → TrainSpec
@@ -177,7 +177,7 @@ framework calls — build model, build loaders, evaluate, visualize), `config.py
 through it:
 
 ```bash
-python -m canvit_train.harness.run <task> --preset <preset> [--cfg.* ...] [--opts.* ...]
+python -m canvit.harness.run <task> --preset <preset> [--cfg.* ...] [--opts.* ...]
 ```
 
 `<task>` is `distill`, `ade20k`, or `in1k`. `--preset` picks *what trains*,
@@ -288,7 +288,7 @@ running the editable install with no error at all.
 Conversion to the HuggingFace-hub layout is always explicit, never automatic:
 
 ```bash
-python -m canvit_train.checkpoint.to_hf --pt-path <run>/checkpoints/best.pt --out-dir <dir>
+python -m canvit.checkpoint.to_hf --pt-path <run>/checkpoints/best.pt --out-dir <dir>
 ```
 
 It detects the checkpoint type: a `distill` checkpoint becomes the pretraining
