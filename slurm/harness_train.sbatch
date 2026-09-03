@@ -127,6 +127,41 @@ for _cand in canvit_train canvit_pretrain; do
     fi
 done
 
+# --- Where does the MODEL come from? ------------------------------------------------------
+# The 2026-09-03 core merge moved the model from its own repo (top-level package
+# `canvit_pytorch`) into `canvit/core/` inside THIS repo. So which snapshot supplies the
+# model now depends on which layout the pinned TRAIN_COMMIT has, and PYTORCH_COMMIT means
+# different things on either side of that line. Neither case below is an error -- both are
+# reachable on purpose -- but both are invisible in the log unless said out loud, and both
+# are a silent loss of reproducibility, which is the one thing this mechanism exists to
+# prevent.
+#
+# Note what is NOT a hazard: an old CanViT-PyTorch snapshot canNOT shadow a post-merge
+# `canvit/core/`, because the two use different top-level names. PYTHONPATH order is
+# irrelevant here.
+if [ "$_PKG" = canvit ]; then
+    # Post-merge snapshot: the model is canvit/core/ inside the CanViT-train snapshot.
+    if [ -n "${PYTORCH_COMMIT:-}" ]; then
+        log "WARNING: PYTORCH_COMMIT=$PYTORCH_COMMIT has NO EFFECT on this job."
+        log "         The pinned TRAIN_COMMIT is post-core-merge, so the model comes from"
+        log "         its canvit/core/ and is pinned by TRAIN_COMMIT. The archived"
+        log "         canvit_pytorch/ package is on PYTHONPATH but nothing imports it."
+        log "         Drop PYTORCH_COMMIT from new launchers."
+    fi
+else
+    # Pre-merge snapshot: its code imports the top-level canvit_pytorch, which this repo no
+    # longer contains. Without a pin it resolves through the venv -- today via a stale
+    # editable .pth pointing at the read-only CanViT-PyTorch clone, and after the next
+    # `uv sync` not at all.
+    if [ -z "${PYTORCH_COMMIT:-}" ]; then
+        log "WARNING: $_PKG is pre-core-merge and imports the top-level canvit_pytorch,"
+        log "         but PYTORCH_COMMIT is not set -- so the model is NOT pinned. It comes"
+        log "         from the venv, which resolves it only while a stale editable .pth"
+        log "         still points at the read-only CanViT-PyTorch clone. Set"
+        log "         PYTORCH_COMMIT to reproduce this run reliably."
+    fi
+fi
+
 export TORCHINDUCTOR_CACHE_DIR="$TMPDIR/torchinductor"
 export TRITON_CACHE_DIR="$TMPDIR/triton"
 export CUDA_CACHE_PATH="$TMPDIR/nv"

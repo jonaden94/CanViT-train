@@ -472,8 +472,7 @@ but a single run must use **one** fixed version of the code. The launchers
 therefore pin each repo to an exact commit:
 
 ```bash
-TRAIN_COMMIT=<sha>     # CanViT-train
-PYTORCH_COMMIT=<sha>   # CanViT-PyTorch
+TRAIN_COMMIT=<sha>     # this repo — the model AND the trainer
 FOVI_COMMIT=<sha>      # fovi
 ```
 
@@ -484,10 +483,21 @@ snapshot **overrides** the editable install for that job. A submitted job is
 therefore immune to later edits or pulls of the clones. The three variables are
 optional and independent; omit them to use the environment's editable install.
 
-`TRAIN_COMMIT` was called `PRETRAIN_COMMIT` before this repo was renamed, and
-`harness_train.sbatch` still accepts that spelling — around 48 launchers under
-`slurm/` use it to reproduce older experiments, and dropping it would leave them
-running the editable install with no error at all.
+Two legacy spellings are still accepted, because dropping either would leave old launchers
+running the editable install with no error at all:
+
+- **`PRETRAIN_COMMIT`** — what `TRAIN_COMMIT` was called before this repo was renamed.
+  Around 48 launchers under `slurm/` use it to reproduce older experiments.
+- **`PYTORCH_COMMIT`** — pinned the model when it was a separate repo, before the
+  2026-09-03 core merge. Around 116 launchers set it. For those, it is still load-bearing:
+  their pinned `TRAIN_COMMIT` predates the merge, so its code imports the top-level
+  `canvit_pytorch`, which only that snapshot supplies. **New launchers must not set it** —
+  `TRAIN_COMMIT` now pins the model too, and `PYTORCH_COMMIT` would have no effect.
+
+`harness_train.sbatch` works out which side of the merge the pinned snapshot is on and says
+so, warning in the two cases where the model silently is not pinned. An old
+`CanViT-PyTorch` snapshot cannot shadow a post-merge `canvit/core/` — the top-level names
+differ, so `PYTHONPATH` order does not matter.
 
 ## Publishing a checkpoint
 
