@@ -652,3 +652,23 @@ Gate: 27 new tests in `harness/tests/test_spec_overrides.py`, the load-bearing o
 pinned to those specs), that all 7 non-empty module subsets are reachable, and that a no-op
 override preserves distill's stochastic bptt. Full suite green; ruff unchanged at its
 pre-existing 38.
+
+### 12.3 Closed decisions — do not reopen
+
+**A `--opts.dry-run` spec preview: CONSIDERED AND DECLINED, owner 2026-09-07.**
+The idea was to resolve the spec, validate it and exit before `build_model`, so an
+override typo is caught on a login node instead of after a queue wait. Declined because
+the protection it adds is thin: `check_spec` already **hard-errors at `run.py:207`, before
+`build_model` at :252 and `build_loaders` at :311**, so an incoherent override never
+reaches a GPU and never trains something silently wrong. A dry run would only save the
+queue wait on runs that were going to be refused anyway. The residual case — a spec that
+is *valid but not what was meant* — is covered by `--help` and by the resolved
+`spec: train(bb=… head=… policy=…)` line the run logs at startup.
+
+Revisit only on evidence: if queue cycles are actually being lost to override typos. Until
+then it is speculative, and the ~8 lines are not the cost — the cost is another flag on a
+surface whose whole point was to stop growing silently.
+
+**Relatedly, "an overridden run has no numeric baseline" is not a defect and has no fix.**
+A combination nobody has run has nothing to compare against; that is what exploring is.
+It does not need code, a warning, or a doc entry beyond this one.
