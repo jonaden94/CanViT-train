@@ -546,3 +546,34 @@ consolidation renamed `harness_train.sbatch`.
 `CanViT-PyTorch` has **no `ARCHIVED.md`**, unlike `CanViT-eval`. Its read-only status is
 recorded in `CLAUDE.md` and in this repo's README table, but a redirect file in the clone
 itself would be the consistent thing and is a one-file change if wanted.
+
+## 12 — Post-merge review of the not-ported list. Owner-accepted 2026-09-07.
+
+Asked after the merges closed: did the eval and core merges leave anything critical out? Four
+items from the earlier specialize/RL merge were checked against the code rather than against
+the docs, because **the docs overstated two of them**.
+
+| item | verdict |
+|---|---|
+| `keep_every` step checkpoints | **Was never missing.** `--opts.ckpt-every` writes `step-<n>.pt`, plus `best.pt` / `latest.pt` and checkpoint-on-SIGUSR1 — and without the RL version's requirement that it divide `eval_every`. |
+| Q-Prop | **Mostly present.** `harness/policy/rl.py`'s `qprop: bool` is the control variate. Not wired into **joint** mode only, which `harness/policy/joint.py` states at the point of use. |
+| `unfreeze="probe"` | **Expressible in `TrainSpec`, not reachable from the CLI.** See below — the one item with a caveat. |
+| `recon_normalized` | **Deliberately dropped (D3), and worth keeping dropped.** It trained the ADE probe on the *pretraining head's* reconstruction output instead of `canvas_hidden`, which required bypassing `CanViTForSemanticSegmentation` — and that bypass was the root cause of the 3-month silent breakage. Removing it removed a breakage class; restoring it would be new work, not a restoration. |
+
+**Owner decision: none of these is worth acting on now.** The condition given was "fine without a
+preset as long as it is expressible by supplying args manually".
+
+**That condition is not met for `unfreeze="probe"`, and the record should not pretend it is.**
+`resolve_spec(task, preset, lr, wd)` is the entire spec surface; `TrainSpec` is not tyro-exposed,
+so no combination of `--cfg.*` / `--opts.*` flags reaches head+policy with a frozen backbone. It
+takes a ~5-line preset. Accepted anyway, on two grounds worth writing down rather than assuming:
+doc 15 records that this rung never produced a result above seed noise, so no finding is blocked
+on it; and the capability is a spec combination, not machinery, so adding the preset later costs
+the same as adding it now.
+
+The general lesson, which is why this section exists: **a "not ported" list decays faster than
+the code it describes.** Two of these four were ported and the list still said otherwise, which
+would have led a future reader to rebuild something that already existed. Check such a list
+against the code before trusting it — and the phrasing matters, because "Q-Prop trainer extras"
+and "`keep_every` step checkpoints" both sound like absent features when one was absent only in
+joint mode and the other was never absent at all.

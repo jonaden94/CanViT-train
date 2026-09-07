@@ -189,6 +189,11 @@ run drifts out of the qband band and the drift traces to this, fall back to
   plateaus at/below seed noise; re-evaluate need after the merge rather than porting.
 - `recon_normalized` ADE feature type (D3).
 
+**All of the above reviewed and ACCEPTED by the owner, 2026-09-07** — after the eval and core
+merges closed, on the question "did the merges leave anything critical out?". None of it is a
+bug or missing critical functionality; see `21-core-merge.md` §12 for the assessment and the
+one item that carries a caveat.
+
 ## 6. New design work (not ports) — each gets its own doc before code
 
 1. **Foveated/square action space — DECIDED (user, 2026-07-22):** actions = fixation

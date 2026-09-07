@@ -612,9 +612,18 @@ Remaining differences, none of which now has evidence of mattering:
    `best.pt` can never be the terminal checkpoint and one eval is spent on the untrained model.
    A real asymmetry; effect likely small (terminal CE 0.6858–0.6890 vs in-run bests ~0.685–0.686,
    so step 8000 would rarely win). Not fixed.
-3. **Not ported, no metric path**: MLflow/uv/justfile, sweeps (`search/`), the `unfreeze="probe"`
-   ladder and Q-Prop trainer extras, `keep_every` step checkpoints, the `policy.eval` episode
-   runner, flow.
+3. **Not ported, no metric path**: MLflow/uv/justfile, sweeps (`search/`), the `policy.eval`
+   episode runner, flow.
+
+   **Corrected 2026-09-07.** This item used to also list "the `unfreeze="probe"` ladder and
+   Q-Prop trainer extras, `keep_every` step checkpoints". Two of those three were already
+   ported and the list was misleading a reader into thinking capability was missing:
+
+   | claimed missing | actual |
+   |---|---|
+   | `keep_every` step checkpoints | **present** as `--opts.ckpt-every`, writing `step-<n>.pt` alongside `best.pt` / `latest.pt`, plus checkpoint-on-SIGUSR1. The RL version had to be a multiple of `eval_every` (asserted) because its step checkpoints were gated inside the eval branch; this one is independent of eval cadence, so the coupling and its assert are gone. |
+   | Q-Prop "extras" | the control variate itself **is** ported — `harness/policy/rl.py`'s `qprop: bool`, the exact-expectation discrete form. The only gap is that it is not wired into **joint** mode, where PG is score-function + entropy floor only; `harness/policy/joint.py` says so at the point of use and deliberately exposes no knob. So: available with a frozen backbone, unavailable when training backbone and policy together. |
+   | `unfreeze="probe"` ladder | **expressible but not reachable.** The RL repo's rung 1 was `unfreeze: {none, probe}` + `probe_lr=1e-5` — train the segmentation head at a tiny LR alongside the policy, backbone frozen. `TrainSpec`'s orthogonal `train_backbone` / `train_head` / `train_policy` + per-group LRs express that strictly more generally, but **no preset produces head+policy with a frozen backbone** (`policy_only` = [policy], `joint` = [backbone, head, policy]), and `resolve_spec(task, preset, lr, wd)` is the whole CLI surface — `TrainSpec` is not tyro-exposed, so there is no `--spec.train-head` to reach it with. It needs a ~5-line preset, not new machinery. |
 4. **Environment**: their 4090 + their core revs vs our A100s + these clones. Unquantifiable
    from here, and GPU nondeterminism alone is non-trivial (§A5.8).
 
