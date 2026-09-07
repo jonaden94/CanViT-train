@@ -6,8 +6,7 @@ divergence, no bug.**
 **Question (owner).** This repo is the result of merging five repos. Does *basic random
 distill pretraining* still compute what the original did, before any of that started?
 
-**Reference.** The commits recorded in `canvit_modify/commit_hashs_when_i_took_over_from_yohai`,
-i.e. the state when the owner took the project over from Yohaï:
+**Reference.** The state when the owner took the project over from Yohaï:
 
 * `CanViT-PyTorch` @ `cc77f4f8277945cc10423d31118ad3439d85d7e8` — 2026-04-27
 * `CanViT-pretrain` @ `1a36eecda04a05cf0c199351c3d2301fcce1ad81` — 2026-04-26

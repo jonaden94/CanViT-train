@@ -182,7 +182,5 @@ This repo is the result of merging five repos into one. The narrative lives in
 
 # Notes
 
-- `git_status_all.sh` prints `git status` across all six clones at once. It lives outside
-  this repo, in `../canvit_modify/` — the folder that used to hold the session config.
 - Persistent memory for these sessions lives under
   `~/.claude/projects/<encoded-repo-path>/memory/` (`MEMORY.md` is the index).
