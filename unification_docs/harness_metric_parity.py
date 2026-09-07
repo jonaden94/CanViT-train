@@ -17,10 +17,10 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 import torch
 
-from canvit_train.distill.config import Config
-from canvit_train.distill.task import DistillRunTask
-from canvit_train.harness.run import RunSettings, run
-from canvit_train.harness.spec import BpttSpec, GroupOptim, ScheduleSpec, TrainSpec
+from canvit.distill.config import Config
+from canvit.distill.task import DistillRunTask
+from canvit.harness.run import RunSettings, run
+from canvit.harness.spec import BpttSpec, GroupOptim, ScheduleSpec, TrainSpec
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
@@ -85,7 +85,7 @@ def main() -> None:
                            grad_norm_deep_prefixes=("patcher", "patcher.conditioner"))
     # run() builds its tracker via make_tracker when settings.tracker == "wandb"; swap in
     # the recorder so the full logging path runs with NO wandb process and no upload.
-    import canvit_train.harness.infra.tracker as T
+    import canvit.harness.infra.tracker as T
     real_make = T.make_tracker
     T.make_tracker = lambda **kw: rec
     try:

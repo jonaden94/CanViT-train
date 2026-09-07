@@ -17,12 +17,12 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 import torch
 
-from canvit_train.ade20k.config import Ade20kConfig
-from canvit_train.ade20k.task import Ade20kRunTask
-from canvit_train.distill.config import Config
-from canvit_train.distill.task import DistillRunTask
-from canvit_train.in1k.config import In1kConfig
-from canvit_train.in1k.task import In1kRunTask
+from canvit.ade20k.config import Ade20kConfig
+from canvit.ade20k.task import Ade20kRunTask
+from canvit.distill.config import Config
+from canvit.distill.task import DistillRunTask
+from canvit.in1k.config import In1kConfig
+from canvit.in1k.task import In1kRunTask
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
@@ -57,7 +57,7 @@ def eval_in1k():
     t = In1kRunTask(cfg)
     clf, _ = t.build_model(DEV)
     # val loader only (skip train wds); make_val_loader directly
-    from canvit_train.in1k.data import make_val_loader
+    from canvit.in1k.data import make_val_loader
     val = make_val_loader(cfg, world_size=1, rank=0)
     metrics = t.evaluate(model=clf, head=clf.head, val_loader=val, device=DEV, step=0)
     print(f"  in1k eval: {metrics}")

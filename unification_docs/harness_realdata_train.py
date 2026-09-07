@@ -15,19 +15,19 @@ from pathlib import Path
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 import torch
-from canvit_pytorch import create_backbone
+from canvit.core import create_backbone
 
-from canvit_train import CanViTForPretraining, CanViTForPretrainingConfig
-from canvit_train.distill.data.webdataset import WebDatasetTrainLoader, init_normalizer_stats_from_tar
-from canvit_train.distill.loss import DistillTask
-from canvit_train.distill.task import BoundDistillTask
-from canvit_train.harness.config import FoveatedScaleConfig
-from canvit_train.harness.infra.checkpoint import find_latest, load_checkpoint, restore_into
-from canvit_train.harness.loop import apply_requires_grad, run_training_loop
-from canvit_train.harness.optim import build_optimizer_and_scheduler
-from canvit_train.harness.rollout.selector import RandomSelector
-from canvit_train.harness.rollout.viewpoint import ViewpointType
-from canvit_train.harness.spec import BpttSpec, GroupOptim, ScheduleSpec, TaskCaps, TrainSpec
+from canvit import CanViTForPretraining, CanViTForPretrainingConfig
+from canvit.distill.data.webdataset import WebDatasetTrainLoader, init_normalizer_stats_from_tar
+from canvit.distill.loss import DistillTask
+from canvit.distill.task import BoundDistillTask
+from canvit.harness.config import FoveatedScaleConfig
+from canvit.harness.infra.checkpoint import find_latest, load_checkpoint, restore_into
+from canvit.harness.loop import apply_requires_grad, run_training_loop
+from canvit.harness.optim import build_optimizer_and_scheduler
+from canvit.harness.rollout.selector import RandomSelector
+from canvit.harness.rollout.viewpoint import ViewpointType
+from canvit.harness.spec import BpttSpec, GroupOptim, ScheduleSpec, TaskCaps, TrainSpec
 
 TRAIN_DIR = Path("/mnt/lustre-rzg/workspaces/ws/nib00021/u25995-inet21k-feat/"
                   "webdataset-imagenet-21k-with-features/train-shuffled")

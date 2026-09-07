@@ -28,15 +28,15 @@ from pathlib import Path
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 import torch
-from canvit_pytorch import CanViTForSemanticSegmentation
+from canvit.core import CanViTForSemanticSegmentation
 
-from canvit_train.ade20k.task import POLICY_FEATURE_GROUPS, BoundAde20kTask
-from canvit_train.harness.config import FoveatedScaleConfig, JointPolicyConfig
-from canvit_train.harness.infra import ddp
-from canvit_train.harness.loop import apply_requires_grad, run_training_loop
-from canvit_train.harness.optim import build_optimizer_and_scheduler
-from canvit_train.harness.rollout.viewpoint import Viewpoint, ViewpointType
-from canvit_train.harness.spec import BpttSpec, GroupOptim, ScheduleSpec, TrainSpec
+from canvit.ade20k.task import POLICY_FEATURE_GROUPS, BoundAde20kTask
+from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
+from canvit.harness.infra import ddp
+from canvit.harness.loop import apply_requires_grad, run_training_loop
+from canvit.harness.optim import build_optimizer_and_scheduler
+from canvit.harness.rollout.viewpoint import Viewpoint, ViewpointType
+from canvit.harness.spec import BpttSpec, GroupOptim, ScheduleSpec, TrainSpec
 
 OUT = Path("/mnt/vast-nhr/projects/nib00021/jonathan/_harness_smoke_ckpts/ddp")
 G, IMG, CLASSES, PER_RANK, STEPS = 8, 224, 20, 2, 6
@@ -125,7 +125,7 @@ def run_leg(joint_mode: bool, dinfo) -> dict:
 
     joint = None
     if joint_mode:
-        from canvit_train.harness.policy import build_policy
+        from canvit.harness.policy import build_policy
         gen = torch.Generator(device=dinfo.device).manual_seed(0)
         joint = build_policy(
             canvit=seg.canvit, rl=JointPolicyConfig(use_rl=True, objective="qreg"),

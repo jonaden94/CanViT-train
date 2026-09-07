@@ -1,10 +1,10 @@
 """Do canvit_eval's and distill's `scene_cos_raw` mean the same thing? Measure it."""
 import torch, torch.nn.functional as F
 from pathlib import Path
-from canvit_train.distill.config import Config
-from canvit_train.distill.data import create_imagefolder_val_loader
-from canvit_train.distill.task import DistillRunTask
-from canvit_train.harness.rollout.eval_viewpoints import open_loop_viewpoints
+from canvit.distill.config import Config
+from canvit.distill.data import create_imagefolder_val_loader
+from canvit.distill.task import DistillRunTask
+from canvit.harness.rollout.eval_viewpoints import open_loop_viewpoints
 
 CKPT = Path("logs/jon_exp32_pretrain_lrdrop/exp32-fovi/checkpoints/step-1916928.pt")
 dev = torch.device("cuda")
@@ -42,10 +42,10 @@ with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
     pred_raw = task.scene_norm.destandardize(pred)     # -> raw space
 
     ce  = F.cosine_similarity(pred,     raw_p,  dim=-1).mean().item()   # canvit_eval
-    tr  = F.cosine_similarity(pred_raw, raw_p,  dim=-1).mean().item()   # canvit_train
+    tr  = F.cosine_similarity(pred_raw, raw_p,  dim=-1).mean().item()   # canvit
     nrm = F.cosine_similarity(pred,     norm_p, dim=-1).mean().item()   # both agree here
 print(f"batch of {B}, t9, exp32-fovi step-1916928")
 print(f"  scene_cos_raw  canvit_eval (no destandardize) = {ce:.6f}")
-print(f"  scene_cos_raw  canvit_train (destandardized)  = {tr:.6f}")
+print(f"  scene_cos_raw  canvit (destandardized)  = {tr:.6f}")
 print(f"  difference                                    = {tr - ce:+.6f}")
 print(f"  scene_cos_norm (identical in both)            = {nrm:.6f}")

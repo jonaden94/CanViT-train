@@ -33,15 +33,15 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import torch
-from canvit_pytorch import create_backbone
+from canvit.core import create_backbone
 
-from canvit_train import CanViTForPretraining, CanViTForPretrainingConfig
-from canvit_train.distill.loss import DistillTask
-from canvit_train.harness.config import FoveatedScaleConfig
-from canvit_train.harness.rollout import GlimpseOut, run_rollout
-from canvit_train.harness.rollout.selector import RandomSelector
-from canvit_train.harness.rollout.viewpoint import ViewpointType
-from canvit_train.harness.spec import BpttSpec
+from canvit import CanViTForPretraining, CanViTForPretrainingConfig
+from canvit.distill.loss import DistillTask
+from canvit.harness.config import FoveatedScaleConfig
+from canvit.harness.rollout import GlimpseOut, run_rollout
+from canvit.harness.rollout.selector import RandomSelector
+from canvit.harness.rollout.viewpoint import ViewpointType
+from canvit.harness.spec import BpttSpec
 
 
 class _DistillAdapter:

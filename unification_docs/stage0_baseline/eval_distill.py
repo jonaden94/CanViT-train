@@ -10,9 +10,9 @@ import argparse, json, logging
 from pathlib import Path
 import torch
 
-from canvit_train.distill.config import Config
-from canvit_train.distill.data import _create_imagefolder_val_loader
-from canvit_train.distill.task import DistillRunTask
+from canvit.distill.config import Config
+from canvit.distill.data import _create_imagefolder_val_loader
+from canvit.distill.task import DistillRunTask
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", type=Path, required=True)

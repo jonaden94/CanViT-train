@@ -8,9 +8,9 @@ import argparse, json, logging
 from pathlib import Path
 import torch
 
-from canvit_train.in1k.config import In1kConfig
-from canvit_train.in1k.data import make_val_loader
-from canvit_train.in1k.task import In1kRunTask
+from canvit.in1k.config import In1kConfig
+from canvit.in1k.data import make_val_loader
+from canvit.in1k.task import In1kRunTask
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", type=Path, required=True)

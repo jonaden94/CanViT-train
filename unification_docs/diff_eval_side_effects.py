@@ -23,14 +23,14 @@ import copy
 
 import torch
 
-from canvit_train.ade20k.config import Ade20kConfig
-from canvit_train.ade20k.data import make_ade20k_loaders
-from canvit_train.ade20k.task import POLICY_FEATURE_GROUPS, Ade20kRunTask
-from canvit_train.harness.config import JointPolicyConfig
-from canvit_train.harness.loop import apply_requires_grad
-from canvit_train.harness.optim import build_optimizer_and_scheduler
-from canvit_train.harness.rollout import run_rollout
-from canvit_train.harness.spec import GroupOptim, ScheduleSpec, TrainSpec, fixed_horizon_bptt
+from canvit.ade20k.config import Ade20kConfig
+from canvit.ade20k.data import make_ade20k_loaders
+from canvit.ade20k.task import POLICY_FEATURE_GROUPS, Ade20kRunTask
+from canvit.harness.config import JointPolicyConfig
+from canvit.harness.loop import apply_requires_grad
+from canvit.harness.optim import build_optimizer_and_scheduler
+from canvit.harness.rollout import run_rollout
+from canvit.harness.spec import GroupOptim, ScheduleSpec, TrainSpec, fixed_horizon_bptt
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--steps", type=int, default=60)
