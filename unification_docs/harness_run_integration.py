@@ -73,13 +73,13 @@ def in1k_cfg(mode="frozen"):
                       num_workers=4, tracker="none", n_timesteps=T, mode=mode)
 
 
-def distill_cfg(use_rl=False):
+def distill_cfg():
     # WebDatasetTrainLoader asserts steps_per_job * batch is a multiple of samples_per_shard
     # (4096); we only consume N steps but the loader's shard schedule needs the alignment.
     bs = 8
     c = Config(webdataset_dir=IN21K_WDS, val_dir=IN1K_VAL, batch_size_per_gpu=bs,
                steps_per_job=4096 // bs, num_workers=4, canvas_patch_grid_size=32, tracker="none")
-    c.rl = JointPolicyConfig(use_rl=use_rl)
+    c.rl = JointPolicyConfig()
     return c
 
 
@@ -121,12 +121,12 @@ def distill_joint_spec():  # train backbone(+in-forward heads) + train policy (P
 CONFIGS = [
     ("ade20k-probe",     lambda: Ade20kRunTask(ade_cfg()),                             probe_spec),
     ("ade20k-finetune",  lambda: Ade20kRunTask(ade_cfg()),                             finetune_spec),
-    ("ade20k-joint",     lambda: Ade20kRunTask(ade_cfg(), rl=JointPolicyConfig(use_rl=True)), joint_frozen_spec),
+    ("ade20k-joint",     lambda: Ade20kRunTask(ade_cfg(), rl=JointPolicyConfig()), joint_frozen_spec),
     ("in1k-frozen",      lambda: In1kRunTask(in1k_cfg("frozen")),                      probe_spec),
     ("in1k-finetune",    lambda: In1kRunTask(in1k_cfg("finetune")),                    finetune_spec),
-    ("in1k-joint",       lambda: In1kRunTask(in1k_cfg("frozen"), rl=JointPolicyConfig(use_rl=True)), joint_frozen_spec),
-    ("distill-finetune", lambda: DistillRunTask(distill_cfg(False)),                   distill_taskonly_spec),
-    ("distill-joint",    lambda: DistillRunTask(distill_cfg(True)),                    distill_joint_spec),
+    ("in1k-joint",       lambda: In1kRunTask(in1k_cfg("frozen"), rl=JointPolicyConfig()), joint_frozen_spec),
+    ("distill-finetune", lambda: DistillRunTask(distill_cfg()),                   distill_taskonly_spec),
+    ("distill-joint",    lambda: DistillRunTask(distill_cfg()),                    distill_joint_spec),
 ]
 
 

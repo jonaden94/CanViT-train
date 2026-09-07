@@ -36,7 +36,7 @@ def _joint_for(*, canvit, encode_model, groups):
     gen = torch.Generator(device=_DEV)
     gen.manual_seed(0)
     return build_policy(
-        canvit=canvit, rl=JointPolicyConfig(use_rl=True, objective="qreg"), feature_groups=groups,
+        canvit=canvit, rl=JointPolicyConfig(objective="qreg"), feature_groups=groups,
         device=_DEV, canvas_grid=_G, min_viewpoint_scale=0.05, foveated_scale=FoveatedScaleConfig(),
         generator=gen, encode_model=encode_model,
     )

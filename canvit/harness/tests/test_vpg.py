@@ -264,20 +264,3 @@ def test_chunked_plus_coupled_policy_is_refused_for_vpg():
     check_credit_regime(joint=_jp(VPG()),
                         spec=replace(coupled_chunked, policy_grad_to_backbone=False))
     check_credit_regime(joint=None, spec=coupled_chunked)
-
-
-def test_legacy_distill_loop_refuses_vpg_rather_than_silently_building_pg():
-    """train/joint.py::build_joint_policy dispatches on a string; before the guard,
-    objective='vpg' fell through to `else: PG(...)` and the run would look healthy while
-    training a different algorithm."""
-    import pytest
-
-    from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
-    from canvit.harness.policy.joint import build_joint_policy
-
-    with pytest.raises(NotImplementedError, match="harness"):
-        build_joint_policy(
-            core_model=None, rl=JointPolicyConfig(use_rl=True, objective="vpg"),
-            device=torch.device("cpu"), canvas_grid=8, min_viewpoint_scale=0.05,
-            foveated_scale=FoveatedScaleConfig(), generator=torch.Generator(),
-        )

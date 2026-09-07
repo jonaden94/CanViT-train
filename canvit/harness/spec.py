@@ -17,7 +17,8 @@ The orthogonal knobs (design §3.3) generate the full config cross product:
 
 ``feats_detached`` in the policy selector is exactly ``not policy_grad_to_backbone``.
 ``mode ∈ {frozen, finetune}`` (old IN1k) is ``train_backbone`` + ``task_grad_to_backbone``.
-``use_rl`` (old P4b) is ``train_policy`` + ``policy_weight > 0``.
+What P4b called ``use_rl`` is ``train_policy`` + ``policy_weight > 0`` (the removed
+``JointPolicyConfig.use_rl`` field was never read; the spec decides).
 """
 
 from __future__ import annotations

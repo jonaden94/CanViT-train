@@ -614,6 +614,39 @@ writes `"train_spec": asdict(spec)` into every checkpoint and the run logs the r
 startup, so an overridden run is recoverable from its artifacts rather than only from its
 launcher. The remaining cost is that warnings stay warnings in a scrolling SLURM log.
 
+### 12.2 Dead policy config removed (2026-09-07)
+
+Tracing the override work surfaced two things that no longer did anything, and the owner asked
+for them gone once they were confirmed:
+
+* **`JointPolicyConfig.use_rl`** — documented as the "Master off-switch. False => no policy",
+  and **read nowhere**. What actually decides whether a policy is built is `run.py`'s
+  `if spec.train_policy or spec.policy_loss_active`. Its only occurrences were a fallback
+  `JointPolicyConfig(use_rl=True, …)` in ade20k/in1k whose value was then never consulted, plus
+  docstrings in `config.py`, `joint.py` and `spec.py` describing a gate that had stopped
+  existing. Removed with its 10 construction sites. No launcher passed `--rl.use-rl`, checked
+  before touching it. Its siblings `rl_weight` and `feats_detached` were checked too and are
+  genuinely live — this is not a half-cleanup.
+* **`build_joint_policy`** — the distill-hardwired predecessor of `build_policy`. `build.py`
+  states its own removal condition ("stays until the big-bang cutover"), and that cutover
+  happened 2026-07-31; production distill has used `build_policy` since. Removed, along with
+  the 6 imports it alone needed. `class JointPolicy` in the same module stays: it is live in
+  `build.py` and `rollout/engine.py`.
+
+Two consumers had to move, and finding the second was luck rather than method — the first
+search for callers ended in `head -5` and silently truncated, so the initial claim of "one
+consumer" was wrong. **Grep for callers without a line limit before deleting anything.**
+
+* `test_vpg.py`'s test of the factory refusing `objective='vpg'` went with it; the live path's
+  equivalent guard is `check_credit_regime`, tested directly.
+* `test_task_rollout.py::test_distill_joint_trains_task_and_scorer` used it *functionally*, so
+  it was ported to `build_policy(..., encode_model=None)` — which is exactly what
+  `distill/task.py::build_policy` does in production. The test now exercises the shipped path
+  instead of a builder nothing ships, which is a strict improvement over keeping dead code
+  alive to satisfy a test.
+
+Gate: 519 passed (520 minus the deleted self-test); ruff unchanged at 38.
+
 Gate: 27 new tests in `harness/tests/test_spec_overrides.py`, the load-bearing ones being that
 `SpecOverrides()` is a **no-op across all 5 presets × 3 tasks** (the pinning digests and P3 are
 pinned to those specs), that all 7 non-empty module subsets are reachable, and that a no-op

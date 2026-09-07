@@ -18,10 +18,10 @@ from canvit.core import (
     CanViTForSemanticSegmentation,
 )
 from canvit.distill.loss import DistillTask
+from canvit.distill.task import POLICY_FEATURE_GROUPS as DISTILL_GROUPS
 from canvit.distill.task import BoundDistillTask
 from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
 from canvit.harness.policy import build_policy
-from canvit.harness.policy.joint import build_joint_policy
 from canvit.harness.rollout import run_rollout
 from canvit.harness.rollout.selector import RandomSelector
 from canvit.harness.rollout.viewpoint import ViewpointType
@@ -167,18 +167,19 @@ def test_in1k_finetune_trains_backbone():
 
 
 # --------------------------------------------------------------------------- #
-# Joint task+policy through the unified engine (the P4b mechanism). Distill here
-# (build_joint_policy fully supports it); per-task joint for ade20k/in1k needs the
-# probe-aware policy builder (loop phase).
+# Joint task+policy through the unified engine (the P4b mechanism). All three tasks go
+# through the probe-aware `build_policy`; distill passes encode_model=None, which is
+# exactly what `distill/task.py::build_policy` does in production.
 # --------------------------------------------------------------------------- #
 def test_distill_joint_trains_task_and_scorer():
     torch.manual_seed(1)
     model = _distill_model()
     gen = torch.Generator(device=_DEV)
     gen.manual_seed(0)
-    joint = build_joint_policy(
-        core_model=model, rl=JointPolicyConfig(use_rl=True, objective="qreg"), device=_DEV,
-        canvas_grid=_G, min_viewpoint_scale=0.05, foveated_scale=FoveatedScaleConfig(), generator=gen,
+    joint = build_policy(
+        canvit=model, rl=JointPolicyConfig(objective="qreg"), feature_groups=DISTILL_GROUPS,
+        device=_DEV, canvas_grid=_G, min_viewpoint_scale=0.05,
+        foveated_scale=FoveatedScaleConfig(), generator=gen, encode_model=None,
     )
     task = BoundDistillTask(DistillTask(
         scene_target=torch.randn(_B, _G * _G, _D), cls_target=torch.randn(_B, _D),
@@ -200,7 +201,7 @@ def _joint_for(*, canvit, encode_model, groups):
     gen = torch.Generator(device=_DEV)
     gen.manual_seed(0)
     return build_policy(
-        canvit=canvit, rl=JointPolicyConfig(use_rl=True, objective="qreg"), feature_groups=groups,
+        canvit=canvit, rl=JointPolicyConfig(objective="qreg"), feature_groups=groups,
         device=_DEV, canvas_grid=_G, min_viewpoint_scale=0.05, foveated_scale=FoveatedScaleConfig(),
         generator=gen, encode_model=encode_model,
     )
@@ -264,7 +265,7 @@ def _vpg_joint(*, canvit, encode_model, groups, **rl_kw):
     # which do not sample. Overridable so a test can assert the refusal.
     rl_kw.setdefault("select_bn_eval", False)
     return build_policy(
-        canvit=canvit, rl=JointPolicyConfig(use_rl=True, objective="vpg", **rl_kw),
+        canvit=canvit, rl=JointPolicyConfig(objective="vpg", **rl_kw),
         feature_groups=groups, device=_DEV, canvas_grid=_G, min_viewpoint_scale=0.05,
         foveated_scale=FoveatedScaleConfig(), generator=gen, encode_model=encode_model,
     )

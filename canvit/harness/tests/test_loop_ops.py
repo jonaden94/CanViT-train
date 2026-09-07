@@ -274,7 +274,7 @@ def test_joint_clips_model_and_scorer_separately(monkeypatch):
     seg, _, _, _, sel = _setup()
     gen = torch.Generator(device="cpu").manual_seed(0)
     joint = build_policy(
-        canvit=seg.canvit, rl=JointPolicyConfig(use_rl=True, objective="qreg"),
+        canvit=seg.canvit, rl=JointPolicyConfig(objective="qreg"),
         feature_groups=ADE_GROUPS, device=torch.device("cpu"), canvas_grid=_G,
         min_viewpoint_scale=0.05, foveated_scale=FoveatedScaleConfig(), generator=gen,
         encode_model=seg,

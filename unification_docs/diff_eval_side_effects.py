@@ -47,7 +47,7 @@ cfg = Ade20kConfig(
     batch_size=16, num_workers=2, eval_batch_size=32,
     limit_val_batches=args.val_batches or None)
 task = Ade20kRunTask(cfg)
-task.rl = JointPolicyConfig(use_rl=True, feature_groups=POLICY_FEATURE_GROUPS,
+task.rl = JointPolicyConfig(feature_groups=POLICY_FEATURE_GROUPS,
                             prime_on_policy=0.5, select_bn_eval=True)
 model, head = task.build_model(dev, prior_model_config=None)
 cg = task.canvas_grid(model)

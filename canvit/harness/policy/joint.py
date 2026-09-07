@@ -4,9 +4,16 @@ Ties the P4a selector seam to the P3 RL objectives so a ViewpointScorer learns
 *inside* the pretraining rollout: the distill task keeps training while the
 policy drives the glimpses from its candidate grid (in-graph, master plan §4.3;
 BatchNorm mode (a) — the train-mode scorer forward that picks the action is the
-one the loss reads). OFF unless ``cfg.rl.use_rl`` — ``build_joint_policy`` is
-only called then, so with it off ``training_step`` sees ``joint=None`` and runs
-the byte-identical historical path (parity gate).
+one the loss reads). ``run.py`` builds a policy iff the spec asks for one
+(``spec.train_policy or spec.policy_loss_active``); otherwise ``training_step``
+sees ``joint=None`` and runs the byte-identical historical path (parity gate).
+
+This module now holds :class:`JointPolicy` only. Its ``build_joint_policy``
+factory — the distill-hardwired predecessor of
+:func:`canvit.harness.policy.build.build_policy` — was removed on 2026-09-07: no
+production path called it, and its sole remaining caller was a test asserting it
+refused ``objective='vpg'``. The live equivalent of that guard is
+:func:`canvit.harness.policy.check_credit_regime`, which is tested directly.
 
 Reward (master plan §3): per glimpse, the fractional reduction in per-image
 distill MSE ``r_t = (L_{t-1} - L_t) / L_{t-1}`` (measured detached by the caller),
@@ -15,22 +22,15 @@ the PG advantage. The scorer + encoder are probe-free here (INTRINSIC feature
 groups): distillation has no task probe, unlike the ADE20K policy trainer.
 """
 
-import math
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 
 import torch
 import torch.distributed as dist
 from torch import Tensor
 
 from canvit.core.policy import (
-    StateEncoder,
     ViewpointScorer,
-    candidate_viewpoints,
-    fixation_candidates,
 )
-from canvit.core.policy.features import INTRINSIC_GROUPS
-from canvit.harness.config import FoveatedScaleConfig, JointPolicyConfig
 from canvit.harness.policy.rl import (
     PG,
     VPG,
@@ -176,82 +176,3 @@ class JointPolicy:
             target = self._norm(depth).normalize(reward).detach()
             loss, _ = qreg_loss(scores, flat_idx, target)
         return self.rl_weight * loss
-
-
-def build_joint_policy(
-    *,
-    core_model,
-    rl: JointPolicyConfig,
-    device: torch.device,
-    canvas_grid: int,
-    min_viewpoint_scale: float,
-    foveated_scale: FoveatedScaleConfig,
-    generator: torch.Generator,
-) -> JointPolicy:
-    """Assemble the scorer, encoder and selectors for the model's patcher family
-    (fixation grid for foveated/square, safe-box grid for uniform), plus the
-    objective and reward standardizers. PG here is score-function + entropy floor
-    only — Q-Prop's control-variate critic (the standalone ADE trainer's `qprop`) is
-    not wired into joint mode, so JointPolicyConfig deliberately exposes no knob."""
-    if rl.objective == "vpg":
-        # Deliberately NOT supported on this legacy path: VPG needs the rollout engine's
-        # deferred-credit branch (terminal reward), which only harness/rollout.py has. The
-        # old train/step.py rollout would silently drop the policy loss entirely.
-        raise NotImplementedError(
-            "objective='vpg' requires the unified harness rollout (terminal reward => "
-            "deferred credit). Run it via `python -m canvit.harness.run <task>`, "
-            "not the legacy train/loop.py path."
-        )
-    is_foveated = getattr(core_model.cfg, "patcher_name", "uniform") in ("foveated", "square")
-    if is_foveated:
-        cand = fixation_candidates(rl.centers_per_axis)
-        n_scale, scales, action_space = 1, (1.0,), "fixation"
-    else:
-        cand = candidate_viewpoints(rl.scales, rl.centers_per_axis)
-        n_scale, scales, action_space = cand.shape[0], rl.scales, "safebox"
-    vp_flat = cand.reshape(-1, 3).to(device)
-
-    if rl.objective == "qreg":
-        obj: Objective = QReg(prime_on_policy=rl.prime_on_policy, dueling=rl.dueling)
-    else:
-        obj = PG(entropy_bonus=rl.entropy_bonus, entropy_target=rl.entropy_target, alpha_lr=rl.alpha_lr)
-
-    # `rl.feature_groups` is None-by-default now ("use the task's own set"); this legacy path
-    # is distill-only, whose set is INTRINSIC_GROUPS — the value the field used to default to,
-    # so this is a no-op for every existing distill run.
-    groups = tuple(rl.feature_groups) if rl.feature_groups is not None else INTRINSIC_GROUPS
-
-    scorer = ViewpointScorer(
-        canvas_dim=core_model.cfg.canvas_dim, width=rl.width, n_scale=n_scale, scales=scales,
-        centers_per_axis=rl.centers_per_axis, block_layers=rl.block_layers, groups=groups,
-        dueling=isinstance(obj, QReg) and obj.dueling, action_space=action_space,
-        readout=rl.policy_readout,
-    ).to(device)
-    scorer.train()
-
-    # StateEncoder wants a segmentation model (seg.canvit.*); with INTRINSIC groups it
-    # only touches seg.canvit.get_spatial / .init_state, so a shim onto the core model
-    # is all it needs (no probe -> no seg.head).
-    encoder = StateEncoder(
-        SimpleNamespace(canvit=core_model), canvas_grid=canvas_grid, feature_groups=groups
-    )
-
-    random_sel = RandomSelector(
-        is_foveated=is_foveated, foveated_scale=foveated_scale, min_viewpoint_scale=min_viewpoint_scale
-    )
-    policy_sel = PolicySelector(
-        net=scorer, encoder=encoder, vp_flat=vp_flat, fallback=random_sel,
-        mode="sample" if isinstance(obj, PG) else "argmax",
-        prime_on_policy=rl.prime_on_policy if isinstance(obj, QReg) else 1.0,
-        feats_detached=rl.feats_detached, generator=generator,
-    )
-
-    jp = JointPolicy(
-        policy_selector=policy_sel, random_selector=random_sel, scorer=scorer, objective=obj,
-        rl_weight=rl.rl_weight, keep_random_branch=rl.keep_random_branch,
-        target_momentum=rl.target_momentum, device=device,
-        prime_target=rl.prime_on_policy, prime_warmup=rl.policy_warmup_steps,
-    )
-    if isinstance(obj, PG) and obj.entropy_target is not None:
-        jp.log_alpha = torch.tensor(math.log(obj.entropy_bonus), device=device)
-    return jp

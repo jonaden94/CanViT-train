@@ -44,17 +44,16 @@ class JointPolicyConfig:
     """Joint task+policy training (unification P4b): learn a ViewpointScorer *while*
     the distill task trains, driving the glimpses from the policy's candidate grid.
 
-    OFF by default (``use_rl=False``) — the training loop then builds the historical
-    RandomSelector and behaves byte-for-byte like pre-P4b pretraining (the parity
-    gate). When ON, the exploratory glimpses (t>=1) of the policy branches come from
+    A policy is built iff the run's ``TrainSpec`` asks for one (``train_policy`` or
+    ``policy_weight > 0``); with no policy the loop builds the historical RandomSelector
+    and behaves byte-for-byte like pre-P4b pretraining (the parity gate). When a policy
+    IS trained, the exploratory glimpses (t>=1) of the policy branches come from
     the scorer's discrete candidate grid via ε-greedy (QReg) or on-policy sampling
     (PG); the per-glimpse reward is the fractional reduction in per-image distill MSE
     (master plan §3), standardized per depth. The action space is the fixation grid
     for foveated/square models and the safe-box grid for uniform.
     """
 
-    use_rl: bool = False
-    """Master off-switch. False => no policy, no behavior change (parity gate)."""
     rl_weight: float = 1.0
     """Scale on the policy loss added to the per-glimpse distill loss."""
     feats_detached: bool = True
@@ -80,7 +79,7 @@ class JointPolicyConfig:
 
     Costs one extra scorer forward per glimpse (~9% step time, backbone path untouched).
     `--rl.no-select-bn-eval` restores mode (a). The `run_rollout` parity digest is
-    unaffected either way: it is measured with no policy attached (`use_rl=False`)."""
+    unaffected either way: it is measured with no policy attached."""
     keep_random_branch: bool = False
     """False (default): every branch is a policy branch (all t>=1 glimpses are the
     policy's grid picks; the distill loss trains on exactly those states). True:

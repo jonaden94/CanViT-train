@@ -176,7 +176,7 @@ class In1kRunTask:
     def build_policy(self, model, *, device, canvas_grid, generator):
         from canvit.harness.config import JointPolicyConfig
         from canvit.harness.policy import build_policy
-        rl = self.rl or JointPolicyConfig(use_rl=True, feature_groups=POLICY_FEATURE_GROUPS)
+        rl = self.rl or JointPolicyConfig(feature_groups=POLICY_FEATURE_GROUPS)
         return build_policy(
             canvit=model.canvit, rl=rl, feature_groups=POLICY_FEATURE_GROUPS, device=device,
             canvas_grid=canvas_grid, min_viewpoint_scale=self.cfg.min_vp_scale,

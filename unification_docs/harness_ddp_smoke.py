@@ -128,7 +128,7 @@ def run_leg(joint_mode: bool, dinfo) -> dict:
         from canvit.harness.policy import build_policy
         gen = torch.Generator(device=dinfo.device).manual_seed(0)
         joint = build_policy(
-            canvit=seg.canvit, rl=JointPolicyConfig(use_rl=True, objective="qreg"),
+            canvit=seg.canvit, rl=JointPolicyConfig(objective="qreg"),
             feature_groups=POLICY_FEATURE_GROUPS, device=dinfo.device, canvas_grid=G,
             min_viewpoint_scale=0.05, foveated_scale=FoveatedScaleConfig(),
             generator=gen, encode_model=seg)

@@ -254,7 +254,7 @@ class Ade20kRunTask:
                 "comparable to them (center_crop measured ~0.016 CE lower in exp27). Pass "
                 "--cfg.resize-mode squish for band-comparable results.",
                 self.cfg.resize_mode, self.cfg.resize_mode)
-        rl = self.rl or JointPolicyConfig(use_rl=True, feature_groups=POLICY_FEATURE_GROUPS)
+        rl = self.rl or JointPolicyConfig(feature_groups=POLICY_FEATURE_GROUPS)
         return build_policy(
             canvit=model.canvit, rl=rl, feature_groups=POLICY_FEATURE_GROUPS, device=device,
             canvas_grid=canvas_grid, min_viewpoint_scale=self.cfg.min_vp_scale,
