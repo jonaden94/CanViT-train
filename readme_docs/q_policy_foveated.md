@@ -4,10 +4,13 @@ Trains the ADE20K viewpoint policy (Q-regression) on our foveated CanViT backbon
 ADE20K probe trained on it. The policy learns **where to look next**; the backbone and probe
 stay frozen.
 
-> **Never run end to end.** Every Q-policy result so far is on a *uniform* backbone. The
-> foveated path is implemented, covered by unit tests, and the exact model this recipe
-> builds has been constructed successfully from both checkpoints — but no training run has
-> completed on it. Treat the first run as a smoke test (see [Checking a run](#checking-a-run)).
+> **Run once, exploratory.** This recipe has been run end to end exactly one time — exp36,
+> ten seeds, 2026-08-31 — and it works: the policy beats random viewpoints on every seed.
+> That is a *first result*, not a reference number. It has no independent replication, no
+> second backbone/probe pair, and nothing to be checked against, so treat it as evidence
+> that the foveated path trains, and treat your own run as a smoke test all the same (see
+> [Checking a run](#checking-a-run)). What exp36 measured is at the end:
+> [What the first run showed](#what-the-first-run-showed-exp36).
 
 ## Run it
 
@@ -105,3 +108,39 @@ backbone's pretraining scale.
 **Do not borrow the uniform policy figures** (`ce_mean` ≈ 0.686, `miou_final` ≈ 0.448):
 different backbone, different probe, canvas grid 64. They do not transfer, and a correct run
 here would look broken against them.
+
+## What the first run showed (exp36)
+
+`jon_exp36_policy_qreg_fovi`, ten seeds, 2026-08-31 (jobs 15654175–15654184, ~65 min each on
+one A100). The first Q-policy training ever completed on a foveated backbone. Numbers are the
+last evaluation of each run (step 8000), mean ± sd over the ten seeds, next to the random
+baseline from [Checking a run](#checking-a-run):
+
+| | t0 | t1 | t2 | t3 | t4 |
+|---|---|---|---|---|---|
+| random viewpoints | 0.377 | 0.403 | 0.415 | 0.424 | 0.428 |
+| exp36 policy | 0.3768 ± 0.0000 | 0.4191 ± 0.0013 | 0.4359 ± 0.0014 | 0.4447 ± 0.0023 | **0.4500 ± 0.0033** |
+
+`ce_mean` 0.6952 ± 0.0016.
+
+Both checks in [Checking a run](#checking-a-run) pass. `miou_t0` came out at 0.3768 on all
+ten seeds — identical to the pairing figure, as it must be, since t0 precedes any policy
+action — so backbone and probe were paired correctly. And the policy clears random at t4 on
+every seed, worst 0.4455.
+
+The **earliness** is the part worth noting, because reaching a given mIoU in fewer glimpses
+is the whole claim: the policy passes random's five-glimpse score (0.428) by **t2**. mIoU also
+rises monotonically t0→t4, which is what rules out a scale mismatch.
+
+### How much this establishes
+
+Little, deliberately. One campaign, one backbone/probe pair, one hyperparameter setting, and
+the ± above is seed spread within that single setting — it is not a run-to-run band for the
+recipe, and there is no earlier foveated-policy result to compare against. The comparison to
+random is sound (t0 agrees to four decimals, and both rows were measured after the mIoU
+re-base of 2026-07-29, `68b635f`), but it is a comparison against an open-loop baseline, not
+a verification of anything.
+
+Do not promote these into a gate or an expected result. If a later run misses them, that is a
+difference to investigate, not a regression — and note that the launcher's checkpoint paths
+predate the 2026-09-03 repo rename, so a re-run needs them repointed first.

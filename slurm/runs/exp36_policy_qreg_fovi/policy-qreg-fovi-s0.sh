@@ -23,14 +23,20 @@
 # as fix_size = scale * H, so a rollout at a scale it never saw makes EVERY glimpse out of
 # distribution. It does not crash -- mIoU just falls as glimpses accumulate.
 #
-# NOT YET RUN. The recipe is the exp35 policy arm with this backbone+probe swapped in and the
-# grid matched to the probe. That arm runs against the published UNIFORM backbone; this one
-# is foveated, so the policy`s action space becomes the fixation grid rather than the
-# safe-box grid. The config is validated (tyro parse + spec resolution) but no training step
-# has been taken with it. Treat the first run as a smoke test: eval/miou_t0 is the
-# pre-policy glimpse -- for a foveated model at a FIXED scale that is the CENTRED foveation,
-# not a full-image view -- so it should match a probe-only eval of the same pair before
-# later timesteps are trusted.
+# RAN 2026-08-31, ten seeds (jobs 15654175-15654184), and it worked: miou t4 = 0.450 +- 0.003
+# against 0.428 for random viewpoints, with eval/miou_t0 = 0.3768 on every seed. Results and
+# what they do and do not establish: readme_docs/q_policy_foveated.md.
+#
+# THE PATHS BELOW PREDATE the 2026-09-03 rename of repos/CanViT-train -> repos/canvit, so
+# this script now stops at its own probe-completion guard. Left as-is on purpose: it is the
+# record of what exp36 ran. Repoint the three paths to repos/canvit/logs/... to re-run it.
+#
+# The recipe is the exp35 policy arm with this backbone+probe swapped in and the grid matched
+# to the probe. That arm runs against the published UNIFORM backbone; this one is foveated,
+# so the policy`s action space becomes the fixation grid rather than the safe-box grid.
+# eval/miou_t0 is the pre-policy glimpse -- for a foveated model at a FIXED scale that is the
+# CENTRED foveation, not a full-image view -- so it should match a probe-only eval of the
+# same pair before later timesteps are trusted.
 #
 # WHAT THE POLICY CHOOSES HERE. With foveated_scale.mode=fixed every glimpse is the same
 # foveation pattern and only the fixation centre changes, t0 included; the window is

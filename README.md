@@ -610,8 +610,9 @@ what they train, how to launch them, and how to judge the results:
 - [`readme_docs/q_policy_foveated.md`](readme_docs/q_policy_foveated.md) —
   training the Q viewpoint policy for a **foveated** model, and the three
   settings that fail silently if they do not match the backbone/probe pair.
-  Not yet run end to end: every Q-policy result so far is on a uniform
-  backbone.
+  Run end to end once — exp36, ten seeds, 2026-08-31, the first Q-policy ever
+  trained on a foveated backbone — where it beat random viewpoints on every
+  seed. An exploratory first result, not a reference number.
 
 `unification_docs/` holds design notes and the generated capability matrix. Two entries there
 are the record of how this repo came to hold everything:

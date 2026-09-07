@@ -89,6 +89,13 @@ Each of these has cost someone real time.
   `canvit_train` ON PURPOSE** — they pin pre-rename commits whose snapshot carries that
   package directory. Do not "modernize" them; `harness_train.sbatch` detects which name a
   snapshot holds.
+- **Those same launchers hardcode `repos/CanViT-train/...` checkpoint paths**, which stopped
+  resolving when the repo was renamed on 2026-09-03 (no symlink was left behind): ~32 under
+  `slurm/runs/` (exp23–exp36) and ~199 under `slurm/archive/`. **Decided (owner,
+  2026-09-07): leave them.** They are the record of what those jobs ran, and new work gets
+  new launchers; repoint the paths to `repos/canvit/logs/...` by hand only when you actually
+  re-run one. Nothing fails silently — a guarded launcher refuses to submit (exp36's does),
+  and the rest would die on a missing file.
 - **`PYTORCH_COMMIT` is load-bearing for those old launchers but must NOT be set by new
   ones.** `TRAIN_COMMIT` now pins model and trainer together; setting `PYTORCH_COMMIT` on a
   post-merge pin has no effect. The launcher warns in both failure directions.
