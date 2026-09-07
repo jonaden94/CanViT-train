@@ -672,3 +672,33 @@ surface whose whole point was to stop growing silently.
 **Relatedly, "an overridden run has no numeric baseline" is not a defect and has no fix.**
 A combination nobody has run has nothing to compare against; that is what exploring is.
 It does not need code, a warning, or a doc entry beyond this one.
+
+**ade20k's `supports_ddp=False` and `supports_compile=False`: ACCEPTED, owner 2026-09-07.**
+Both are **unimplemented, not inherent** — the phrasing matters, because "ade20k can't do DDP"
+would be wrong and would stop someone fixing it when it finally pays:
+
+* **DDP.** Map-style datasets support DDP fine; that is what `DistributedSampler` is for.
+  `make_ade20k_loaders` simply does not use one, so under `world_size > 1` every rank would draw
+  OVERLAPPING samples — no error, just an effective batch that is not what the config says.
+  `check_spec` therefore refuses multi-GPU before the model is built. A few lines would fix it.
+* **compile.** `run()` compiles the WRAPPER's forward, but ade20k/in1k step `model.canvit(...)` /
+  `model.head(...)` directly, so wrapper-level compilation would be a silent no-op. Compiling
+  `.canvit` explicitly would work.
+
+Accepted because the condition the owner set is met: **the single-GPU path is correct, and both
+gaps are guarded refusals with tests rather than silent degradations.**
+
+* `run.py:257-266` **raises** on `compile=True` for a task with `supports_compile=False`
+  ("Refuse rather than pretend") — you cannot quietly pay compile warmup for nothing.
+* The DDP refusal is tested twice: `test_run_wrappers.py:194` pins ade20k's caps and asserts
+  in1k's `supports_ddp` is True (so it is not a blanket), and `test_spec.py:126-129` asserts the
+  error fires under `is_dist=True`.
+* At `world_size == 1` a plain shuffling `DataLoader` is exactly correct — nothing is degraded.
+
+And the usage supports it: **every ade20k launcher under `slurm/runs/` is `NGPU=1`**, the
+production configuration being the frozen-backbone probe (`batch_size=16`, `max_steps=40000`),
+which is cheap. The only `--preset finetune` launcher is a repro script, also `NGPU=1`.
+
+Revisit trigger, named so this need not be re-derived: **a serious ade20k finetune.** Training
+the backbone at 512px is where multi-GPU would actually pay, and that is when the DDP gap stops
+being theoretical. Until then, do not reopen either.
