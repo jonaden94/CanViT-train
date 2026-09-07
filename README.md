@@ -220,7 +220,7 @@ prefer this repo's equivalents:
 
 | clone | superseded by | kept because |
 |---|---|---|
-| `CanViT-PyTorch/` | [`canvit/core/`](canvit/core/) | 116 launchers `git archive` a core commit out of its `.git` to pin long runs |
+| `CanViT-PyTorch/` | [`canvit/core/`](canvit/core/) | 116 launchers `git archive` a core commit out of its `.git` to pin long runs — see its `ARCHIVED.md` for the import-path rule, the `PYTORCH_COMMIT` rule, and two defects left in its final state |
 | `CanViT-eval/` | `canvit.harness.evaluate` | its `results/` are the historical record (its `reconstruction` task's `*_cos_raw` numbers are wrong — see its `ARCHIVED.md`) |
 | `CanViT-specialize/`, `CanViT-PyTorch-RL/` | `canvit.{ade20k,in1k}`, `canvit.harness.policy` | pre-unification reference for the downstream and RL recipes |
 
