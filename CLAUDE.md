@@ -108,7 +108,7 @@ Each repo has its **own** uv-managed venv; a venv is an editable install of its 
 running it directly picks up your edits — no `PYTHONPATH` gymnastics.
 
 ```bash
-.venv-cu126/bin/python -m pytest canvit          # 493 tests
+.venv-cu126/bin/python -m pytest canvit          # 519 tests
 ```
 
 torch uses the GPU only if its CUDA build is `<=` the node's driver. Many compute nodes here
