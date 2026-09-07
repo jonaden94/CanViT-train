@@ -390,6 +390,23 @@ def check_spec(spec: TrainSpec, caps: TaskCaps, *, is_dist: bool = False) -> Spe
             "memory for the whole rollout. (Not warned for train_policy runs — the "
             "policy's cross-timestep path has not been measured.)"
         )
+    if spec.train_backbone and spec.bptt.mode == "none":
+        # The MIRROR of the frozen-backbone warning above, and the one an override can
+        # reach: bptt is derived from train_backbone by the presets, so flipping
+        # train_backbone on via `--spec.train-backbone True` over a probe preset leaves
+        # mode='none' behind. bptt moves the backbone and nothing else, so mode='none'
+        # here means the backbone gets NO cross-timestep credit — a far weaker regime
+        # than `--preset finetune`, and previously silent because the warning below only
+        # fired the other way round. `_apply_overrides` re-derives bptt when the override
+        # changes train_backbone, so reaching this warning means bptt was pinned
+        # deliberately (or a task's own default_spec is inconsistent).
+        w.append(
+            "train_backbone is True but bptt.mode='none' — the backbone will get no "
+            "cross-timestep gradient, only within-timestep credit. bptt moves the "
+            "backbone only, so 'none' with a TRAINABLE backbone is a much weaker "
+            "regime than 'full'/'chunked'. Use fixed_horizon_bptt(frozen=False, ...) "
+            "unless you specifically want single-step credit."
+        )
     if (spec.train_backbone and not spec.task_grad_to_backbone
             and spec.policy_grad_to_backbone and not spec.task_loss_active):
         w.append("backbone is trained solely by the policy loss (no task signal) — unusual but valid")

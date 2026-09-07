@@ -623,7 +623,21 @@ Remaining differences, none of which now has evidence of mattering:
    |---|---|
    | `keep_every` step checkpoints | **present** as `--opts.ckpt-every`, writing `step-<n>.pt` alongside `best.pt` / `latest.pt`, plus checkpoint-on-SIGUSR1. The RL version had to be a multiple of `eval_every` (asserted) because its step checkpoints were gated inside the eval branch; this one is independent of eval cadence, so the coupling and its assert are gone. |
    | Q-Prop "extras" | the control variate itself **is** ported — `harness/policy/rl.py`'s `qprop: bool`, the exact-expectation discrete form. The only gap is that it is not wired into **joint** mode, where PG is score-function + entropy floor only; `harness/policy/joint.py` says so at the point of use and deliberately exposes no knob. So: available with a frozen backbone, unavailable when training backbone and policy together. |
-   | `unfreeze="probe"` ladder | **expressible but not reachable.** The RL repo's rung 1 was `unfreeze: {none, probe}` + `probe_lr=1e-5` — train the segmentation head at a tiny LR alongside the policy, backbone frozen. `TrainSpec`'s orthogonal `train_backbone` / `train_head` / `train_policy` + per-group LRs express that strictly more generally, but **no preset produces head+policy with a frozen backbone** (`policy_only` = [policy], `joint` = [backbone, head, policy]), and `resolve_spec(task, preset, lr, wd)` is the whole CLI surface — `TrainSpec` is not tyro-exposed, so there is no `--spec.train-head` to reach it with. It needs a ~5-line preset, not new machinery. |
+   | `unfreeze="probe"` ladder | **Configuration reachable since 2026-09-07; its objective is not.** The RL repo's rung 1 was `unfreeze: {none, probe}` + `probe_lr=1e-5` — train the segmentation head at a tiny LR alongside the policy, backbone frozen. `TrainSpec`'s orthogonal `train_backbone` / `train_head` / `train_policy` + per-group LRs express that shape strictly more generally, but until 2026-09-07 no *preset* produced head+policy with a frozen backbone (`policy_only` = [policy], `joint` = [backbone, head, policy]) and `TrainSpec` was not tyro-exposed, so it could not be reached from the CLI at all. `--spec.*` overrides closed that. See the note below for what still differs. |
+
+   **Resolved 2026-09-07 by `--spec.*` overrides**, which make every `TrainSpec` combination
+   reachable rather than only the five named presets — so head+policy with a frozen backbone is
+   now `--preset probe --spec.train-policy True --spec.policy-weight 1.0`.
+
+   **This gives the SHAPE of rung 1, not its objective, and the difference matters.** The RL
+   repo optimised ONE quantity, `J = mean_t CE_t / CE_t0`, differentiated two ways — score-function
+   credit for the policy, the direct `dJ/d(probe)` term for the probe — with its config comment
+   stating "Same J, two gradient routes, no loss weights". The harness optimises
+   `task_weight * task_loss + policy_weight * policy_loss`: two weighted losses, and the head is
+   trained by plain CE rather than by the t0-normalised J. So the override reproduces "probe and
+   policy train together, backbone frozen", which is a reasonable configuration in its own right,
+   but **not this rung's numbers**. Reproducing those is separate work, and doc 15 records that the
+   rung never beat seed noise, so nothing is blocked on it.
 4. **Environment**: their 4090 + their core revs vs our A100s + these clones. Unquantifiable
    from here, and GPU nondeterminism alone is non-trivial (§A5.8).
 

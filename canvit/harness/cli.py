@@ -147,11 +147,50 @@ def _identity(cfg: Any, opts: HarnessOpts, *, prefix: str,
 
 
 @dataclass
+class SpecOverrides:
+    """Per-field overrides applied ON TOP of ``--preset`` (design §3.3).
+
+    The preset says WHAT TRAINS as a coherent whole — the trainable modules, the loss
+    weights, the grad routing, the BPTT regime and each group's tuned LR schedule. These
+    override individual fields of that whole, so every combination `TrainSpec` can express
+    is reachable from the CLI rather than only the five named ones.
+
+    ``None`` means "leave the preset's value", so an all-default ``SpecOverrides`` is a
+    no-op — `resolve_spec` returns exactly what it returned before this existed.
+
+    Deliberately NOT exposed here: ``optim`` and ``bptt``. ``optim`` is a dict of nested
+    dataclasses whose tuned per-group LR schedule is the thing presets exist to carry
+    (flattening it onto the CLI would generate `--spec.optim.backbone.schedule.warmup-lr-ratio`
+    and reintroduce the silent-misconfiguration class that filling it centrally closed).
+    ``bptt`` is DERIVED: it follows ``train_backbone``, and is recomputed below when an
+    override changes it.
+
+    `check_spec` validates the result whatever its origin, so an incoherent combination is
+    rejected before the model is built, and a vacuous-but-runnable one is warned about.
+    """
+
+    train_backbone: bool | None = None
+    train_head: bool | None = None
+    train_policy: bool | None = None
+    task_weight: float | None = None
+    policy_weight: float | None = None
+    task_grad_to_backbone: bool | None = None
+    policy_grad_to_backbone: bool | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """The fields actually set, ready for ``dataclasses.replace``."""
+        from dataclasses import fields as _fields
+
+        return {f.name: v for f in _fields(self) if (v := getattr(self, f.name)) is not None}
+
+
+@dataclass
 class DistillCmd:
     """Pretraining: passive -> active dense latent distillation from DINOv3."""
 
     cfg: Config = field(default_factory=Config)
     preset: PresetName = "default"
+    spec: SpecOverrides = field(default_factory=SpecOverrides)
     opts: HarnessOpts = field(default_factory=HarnessOpts)
 
     def build(self) -> tuple[Any, RunSettings]:
@@ -195,6 +234,7 @@ class Ade20kCmd:
 
     cfg: Ade20kConfig = field(default_factory=Ade20kConfig)
     preset: PresetName = "default"
+    spec: SpecOverrides = field(default_factory=SpecOverrides)
     rl: JointPolicyConfig = field(default_factory=JointPolicyConfig)
     """Viewpoint-policy config; only consulted for policy/joint presets."""
     opts: HarnessOpts = field(default_factory=HarnessOpts)
@@ -228,6 +268,7 @@ class In1kCmd:
 
     cfg: In1kConfig = field(default_factory=In1kConfig)
     preset: PresetName = "default"
+    spec: SpecOverrides = field(default_factory=SpecOverrides)
     rl: JointPolicyConfig = field(default_factory=JointPolicyConfig)
     opts: HarnessOpts = field(default_factory=HarnessOpts)
 
@@ -281,15 +322,25 @@ def _policy_warmup_steps(task: Any, pol: Any) -> int:
     return int(pol.policy_warmup_frac * total)
 
 
-def resolve_spec(task: Any, preset: str, lr: float, wd: float) -> TrainSpec:
-    """Pick the spec from ``preset`` (``default`` = the task's own ``default_spec``) and
-    give every trainable module an optimizer group (the presets ship an empty ``optim``,
-    filled here from the task config's peak_lr / weight_decay)."""
+def resolve_spec(task: Any, preset: str, lr: float, wd: float,
+                 overrides: SpecOverrides | None = None) -> TrainSpec:
+    """Pick the spec from ``preset`` (``default`` = the task's own ``default_spec``), apply
+    any ``overrides`` on top, and give every trainable module an optimizer group (the
+    presets ship an empty ``optim``, filled here from the task config's peak_lr /
+    weight_decay).
+
+    With no overrides this returns exactly what it returned before ``SpecOverrides``
+    existed — including the ``default`` fast path — because the pinning digests and the
+    phase-2 numeric gate are pinned to those specs."""
     from dataclasses import replace
 
-    if preset == "default":
-        return task.default_spec()
+    over = overrides.as_dict() if overrides is not None else {}
     horizon = getattr(task.cfg, "n_timesteps", 10)
+    if preset == "default":
+        spec = task.default_spec()
+        if not over:
+            return spec  # untouched fast path: byte-identical to the pre-override behaviour
+        return _apply_overrides(task, spec, over, lr=lr, wd=wd, horizon=horizon)
     # Same rule the tasks' own default_spec uses, so `--preset finetune` and
     # `--cfg.mode finetune` agree on the regime instead of quietly differing.
     chunk = getattr(task.cfg, "bptt_chunk_size", 0)
@@ -310,6 +361,32 @@ def resolve_spec(task: Any, preset: str, lr: float, wd: float) -> TrainSpec:
     # (distill 'finetune' => task-only backbone; distill 'joint' => backbone + policy).
     if not task.caps().has_head and spec.train_head:
         spec = replace(spec, train_head=False)
+    return _apply_overrides(task, spec, over, lr=lr, wd=wd, horizon=horizon)
+
+
+def _apply_overrides(task: Any, spec: TrainSpec, over: dict, *, lr: float, wd: float,
+                     horizon: int) -> TrainSpec:
+    """Apply ``over`` to ``spec``, re-derive ``bptt`` if needed, then fill optim groups.
+
+    Order matters: overrides must land BEFORE the optim-group fill, or a module the
+    override newly makes trainable arrives with no group and `check_spec` rejects the run
+    with "optim[backbone] missing" instead of inheriting the task's tuned lr/wd/schedule."""
+    from dataclasses import replace
+
+    was_train_backbone = spec.train_backbone
+    if over:
+        spec = replace(spec, **over)
+        # BPTT is derived from train_backbone, so a preset's value goes stale the moment an
+        # override flips it: `--preset probe --spec.train-backbone True` would otherwise
+        # train the backbone with bptt='none', i.e. no cross-timestep graph at all — a much
+        # weaker regime than `--preset finetune`, silently. Recompute only when the value
+        # actually CHANGED: distill's default bptt is stochastic ('chunked' with
+        # continue_prob), which fixed_horizon_bptt cannot express, so re-deriving it on a
+        # no-op override would quietly replace distill's training regime.
+        if spec.train_backbone != was_train_backbone:
+            spec = replace(spec, bptt=fixed_horizon_bptt(
+                frozen=not spec.train_backbone, horizon=horizon,
+                chunk_size=getattr(task.cfg, "bptt_chunk_size", 0)))
     # ade20k/in1k carry the policy config on the task (passed in); distill keeps it
     # inside its own config as `cfg.rl`.
     pol = getattr(task, "rl", None) or getattr(task.cfg, "rl", None) or JointPolicyConfig()
@@ -363,7 +440,7 @@ def main(argv: list[str] | None = None) -> dict:
 
     cmd: Any = tyro.cli(Command, args=argv)
     task, settings = cmd.build()
-    spec = resolve_spec(task, cmd.preset, *cmd.lr_wd())
+    spec = resolve_spec(task, cmd.preset, *cmd.lr_wd(), getattr(cmd, "spec", None))
     log.info("task=%s preset=%s n_steps=%d eval_every=%d run_dir=%s",
              task.name, cmd.preset, settings.n_steps, settings.eval_every, settings.run_dir)
     return run(task=task, spec=spec, settings=settings)

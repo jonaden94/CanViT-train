@@ -383,7 +383,7 @@ framework calls — build model, build loaders, evaluate, visualize), `config.py
 through it:
 
 ```bash
-python -m canvit.harness.run <task> --preset <preset> [--cfg.* ...] [--opts.* ...]
+python -m canvit.harness.run <task> --preset <preset> [--spec.* ...] [--cfg.* ...] [--opts.* ...]
 ```
 
 `<task>` is `distill`, `ade20k`, or `in1k`. `--preset` picks *what trains*,
@@ -406,6 +406,52 @@ each resolves to — read it rather than guessing, and regenerate it with
 `--cfg.*` are the task's own knobs (see the `Config` dataclass in the task's
 `config.py`); `--opts.*` are the framework's (run identity, cadence, checkpoint
 paths). `--help` on any task prints the full, documented flag surface.
+
+#### Overriding a preset — `--spec.*`
+
+A preset is a *coherent whole*: which modules train, the loss weights, the grad routing, the
+BPTT regime, and each group's tuned LR schedule. That is why it exists rather than a pile of
+booleans — a non-default preset used to fall back to a bare optimizer group and silently threw
+away `warmup_onecycle` / `warmup_cosine`.
+
+But the preset is not the limit. `--spec.*` overrides individual fields on top of it, so every
+combination `TrainSpec` can express is reachable:
+
+```bash
+# train the head AND the policy, backbone frozen (not any preset's shape)
+python -m canvit.harness.run ade20k --preset probe \
+    --spec.train-policy True --spec.policy-weight 1.0
+
+# joint, but leave the head alone
+python -m canvit.harness.run ade20k --preset joint --spec.train-head False
+```
+
+| flag | |
+|---|---|
+| `--spec.train-backbone`, `--spec.train-head`, `--spec.train-policy` | which modules get gradients |
+| `--spec.task-weight`, `--spec.policy-weight` | loss weights; a module that trains needs its loss active |
+| `--spec.task-grad-to-backbone`, `--spec.policy-grad-to-backbone` | whether each loss reaches the trunk |
+
+Unset means "keep the preset's value", so passing none of them changes nothing.
+
+Two things happen automatically, and both exist because they were silent traps:
+
+- **`bptt` follows `train-backbone`.** It is derived, not a flag, so flipping the backbone on
+  over `--preset probe` re-derives it — otherwise you would train the backbone with
+  `bptt='none'`, i.e. no cross-timestep credit at all, which is far weaker than `finetune` and
+  looks identical in the log. It is re-derived only when the value actually *changes*, because
+  `distill`'s default is a stochastic `chunked`/`continue_prob` regime that must not be
+  replaced by a no-op override.
+- **`check_spec` validates the result** whatever its origin. Incoherent combinations are
+  *rejected before the model is built* (`train_policy` with `policy_weight == 0`, a loss routed
+  into a frozen backbone, a head on a headless task, unsupported DDP cells); vacuous-but-runnable
+  ones are warned about and still run. The rule is "give all options, trust the user, warn on
+  the degenerate".
+
+Reproducibility is unaffected: every checkpoint records the fully resolved spec as
+`train_spec`, and the run logs it at startup — so an overridden run is recoverable from its
+artifacts, not only from its launcher. For anything you will run more than twice, prefer adding
+a named preset: it is one greppable token in a launcher and a digest test can pin it.
 
 ### Run artifacts
 

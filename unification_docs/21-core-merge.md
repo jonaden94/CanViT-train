@@ -577,3 +577,45 @@ would have led a future reader to rebuild something that already existed. Check 
 against the code before trusting it — and the phrasing matters, because "Q-Prop trainer extras"
 and "`keep_every` step checkpoints" both sound like absent features when one was absent only in
 joint mode and the other was never absent at all.
+
+### 12.1 Follow-through: `--spec.*` overrides (2026-09-07)
+
+§12 accepted `unfreeze="probe"` as unreachable. The owner then asked the better question —
+*why is the CLI limited to presets at all?* — and the answer was that it was never a decision:
+`TrainSpec` has orthogonal `train_backbone` / `train_head` / `train_policy` + weights + grad
+routing, and `check_spec`'s own docstring says "Every combination is *allowed*… give all
+options, trust the user, warn on the degenerate". The **validator was written for arbitrary
+user combinations; only the CLI never caught up.**
+
+So `resolve_spec` now takes `SpecOverrides`, exposing seven flags. Every combination
+`TrainSpec` can express is reachable, `unfreeze="probe"`'s shape included.
+
+Three things were deliberate, and each closes a trap rather than adding a feature:
+
+* **`optim` and `bptt` are NOT exposed.** `optim` is nested dataclasses whose tuned per-group
+  schedule is the very thing presets exist to carry — flattening it would generate
+  `--spec.optim.backbone.schedule.warmup-lr-ratio` and reopen the silent-misconfiguration
+  class that filling it centrally closed (`resolve_spec`'s own comment records that bug).
+* **`bptt` is re-derived when an override *changes* `train_backbone`** — not merely when one is
+  passed. `--preset probe --spec.train-backbone True` would otherwise train the backbone with
+  `bptt='none'`, i.e. no cross-timestep credit, silently far weaker than `finetune`. Guarding
+  on the *value* matters because distill's default bptt is a stochastic
+  `chunked`/`continue_prob` regime `fixed_horizon_bptt` cannot express, so re-deriving on a
+  no-op override would have replaced distill's training regime.
+* **A new `check_spec` warning** for `train_backbone=True` with `bptt.mode == "none"` — the
+  mirror of the long-standing frozen-backbone warning, which only ever fired the other way.
+
+Overrides are applied *inside* `resolve_spec`, before the optimizer-group fill, so a newly
+trainable module inherits the task's lr/wd/schedule instead of erroring with
+"optim[backbone] missing".
+
+**Reproducibility is unaffected**, which was the objection worth checking: `save_checkpoint`
+writes `"train_spec": asdict(spec)` into every checkpoint and the run logs the resolved spec at
+startup, so an overridden run is recoverable from its artifacts rather than only from its
+launcher. The remaining cost is that warnings stay warnings in a scrolling SLURM log.
+
+Gate: 27 new tests in `harness/tests/test_spec_overrides.py`, the load-bearing ones being that
+`SpecOverrides()` is a **no-op across all 5 presets × 3 tasks** (the pinning digests and P3 are
+pinned to those specs), that all 7 non-empty module subsets are reachable, and that a no-op
+override preserves distill's stochastic bptt. Full suite green; ruff unchanged at its
+pre-existing 38.
