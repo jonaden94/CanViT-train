@@ -1,9 +1,5 @@
 # CanViT
 
-<p align="center">
-  <img src="assets/canvas_attention_across_scales.png" alt="Canvas attention across scales — two example trajectories showing glimpses, canvas crops, and full canvas PCA/change maps over multiple timesteps." width="100%">
-</p>
-
 _[CanViT: Toward Active-Vision Foundation Models](https://arxiv.org/abs/2603.22570) (arXiv:2603.22570)_
 
 **Yohaï-Eliel Berreby, Sabrina Du, Audrey Durand, B. Suresh Krishna**
