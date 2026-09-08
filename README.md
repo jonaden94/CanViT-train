@@ -211,7 +211,7 @@ repos/
 The dependency direction is `fovi` → this repo. Each has its **own** uv-managed virtual
 environment.
 
-Three further clones are kept **read-only, as fallback references** — do not edit them, and
+Four further clones are kept **read-only, as fallback references** — do not edit them, and
 prefer this repo's equivalents:
 
 | clone | superseded by | kept because |
@@ -527,7 +527,7 @@ FOVI_COMMIT=<sha>      # fovi
 (local object store only — no network, no SSH, works for private repos) into the
 job's `TMPDIR` and prepends them to `PYTHONPATH` with `PYTHONSAFEPATH=1`, so the
 snapshot **overrides** the editable install for that job. A submitted job is
-therefore immune to later edits or pulls of the clones. The three variables are
+therefore immune to later edits or pulls of the clones. Both variables are
 optional and independent; omit them to use the environment's editable install.
 
 Two legacy spellings are still accepted, because dropping either would leave old launchers
@@ -634,11 +634,15 @@ disagree. Re-sync the environment (`uv sync`) so `canvit/core/` and `fovi` are c
 pre-2026-09-03 layout. The model is `canvit.core` now; the old top-level package exists only
 in the read-only `CanViT-PyTorch` clone that the pinned launchers archive from.
 
-**A pinned SLURM run using unexpected model code.** `harness_train.sbatch` prepends each
-pinned snapshot to `PYTHONPATH`, and a `CanViT-PyTorch` snapshot shadows a post-merge
-`canvit/core/`. That is correct when reproducing an old run and wrong for a new one; the
-launcher logs which package it resolved. See
-[`unification_docs/21-core-merge.md`](unification_docs/21-core-merge.md) §4.
+**A pinned SLURM run using unexpected model code.** Not through shadowing — an old
+`CanViT-PyTorch` snapshot and a post-merge `canvit/core/` have different top-level names, so
+`PYTHONPATH` order cannot make one win over the other (`unification_docs/21-core-merge.md`
+§10.2 retracts the §4 prediction that it could). The two real hazards are silent losses of
+reproducibility, and the launcher logs both: no `TRAIN_COMMIT` at all, in which case the job
+runs the venv's editable install and later edits to the clone change it; and
+`PYTORCH_COMMIT` set on a post-merge pin, where it archives a `canvit_pytorch` that the
+pinned trainer never imports — inert, not shadowing. It logs the commit it pinned for each
+repo and which package name the snapshot holds.
 
 ## Citation
 
