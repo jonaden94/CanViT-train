@@ -181,7 +181,7 @@ The standalone `SegmentationProbe` head is also exported from `canvit.core` for 
 
 We aim to maintain compatibility with [`torch.export`](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/export.html) and [ONNX Runtime](https://onnxruntime.ai/).
 
-`bench/pt/` holds the inference benchmark (`run.py`, `matrix.py`, `analyze.py`) and the
+`scripts/bench/pt/` holds the inference benchmark (`run.py`, `matrix.py`, `analyze.py`) and the
 committed baselines it compares against.
 
 ## What this repo trains
@@ -395,10 +395,10 @@ orthogonally to the task:
 | `joint` | task and policy together |
 
 Not every combination is meaningful (`distill` has no head, so `--preset probe`
-is refused). **`unification_docs/capability_matrix.md` is generated from the live
+is refused). **`claude_dev/unification/capability_matrix.md` is generated from the live
 task objects** and lists exactly which task/preset combinations exist and what
 each resolves to — read it rather than guessing, and regenerate it with
-`unification_docs/capability_matrix.py` after changing a `default_spec`.
+`claude_dev/unification/capability_matrix.py` after changing a `default_spec`.
 
 `--cfg.*` are the task's own knobs (see the `Config` dataclass in the task's
 `config.py`); `--opts.*` are the framework's (run identity, cadence, checkpoint
@@ -580,7 +580,7 @@ A foveated model is only in-distribution at the view scale it was trained at, so
 accumulate. The command warns when the generated scales look off-distribution.
 
 Details, and every defect found while unifying the two eval paths:
-[`unification_docs/20-eval-merge.md`](unification_docs/20-eval-merge.md).
+[`claude_dev/unification/20-eval-merge.md`](claude_dev/unification/20-eval-merge.md).
 
 ## Tests
 
@@ -601,24 +601,27 @@ numbers recorded when they were written.
 
 ## Further documentation
 
-[`readme_docs/`](readme_docs/) holds procedures for specific training campaigns —
+[`docs/`](docs/) holds procedures for specific training campaigns —
 what they train, how to launch them, and how to judge the results:
 
-- [`readme_docs/verification_runs.md`](readme_docs/verification_runs.md) — the
+- [`docs/verification_runs.md`](docs/verification_runs.md) — the
   exp32–exp35 campaign: pretraining with a learning-rate drop, ImageNet-1k
   finetunes, ADE20K probes, and 10 seeds of viewpoint-policy training, each
   checked against an established expected result.
-- [`readme_docs/q_policy_foveated.md`](readme_docs/q_policy_foveated.md) —
+- [`docs/q_policy_foveated.md`](docs/q_policy_foveated.md) —
   training the Q viewpoint policy for a **foveated** model, and the three
   settings that fail silently if they do not match the backbone/probe pair.
   Run end to end once — exp36, ten seeds, 2026-08-31, the first Q-policy ever
   trained on a foveated backbone — where it beat random viewpoints on every
   seed. An exploratory first result, not a reference number.
 
-`unification_docs/` holds design notes and the generated capability matrix. Two entries there
+[`claude_dev/`](claude_dev/) is the other half of the documentation, kept for a different
+reader: it is the engineering record an AI agent reads to make a decision here — what was
+tried, what was measured, and which comparisons are invalid. `claude_dev/unification/`
+holds design notes and the generated capability matrix. Two entries there
 are the record of how this repo came to hold everything:
-[`20-eval-merge.md`](unification_docs/20-eval-merge.md) (evaluation) and
-[`21-core-merge.md`](unification_docs/21-core-merge.md) (the model).
+[`20-eval-merge.md`](claude_dev/unification/20-eval-merge.md) (evaluation) and
+[`21-core-merge.md`](claude_dev/unification/21-core-merge.md) (the model).
 
 ### Other implementations
 
@@ -636,7 +639,7 @@ in the read-only `CanViT-PyTorch` clone that the pinned launchers archive from.
 
 **A pinned SLURM run using unexpected model code.** Not through shadowing — an old
 `CanViT-PyTorch` snapshot and a post-merge `canvit/core/` have different top-level names, so
-`PYTHONPATH` order cannot make one win over the other (`unification_docs/21-core-merge.md`
+`PYTHONPATH` order cannot make one win over the other (`claude_dev/unification/21-core-merge.md`
 §10.2 retracts the §4 prediction that it could). The two real hazards are silent losses of
 reproducibility, and the launcher logs both: no `TRAIN_COMMIT` at all, in which case the job
 runs the venv's editable install and later edits to the clone change it; and

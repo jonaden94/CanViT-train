@@ -56,9 +56,18 @@ canvit/
 grep -rn "from canvit\.\(harness\|distill\|ade20k\|in1k\)" canvit/core/
 ```
 
-Also at the repo root: `slurm/` (launchers), `unification_docs/` (design notes + history),
-`readme_docs/` (campaign procedures), `bench/pt/` (inference benchmark), `demos/`,
-`test_data/`.
+Also at the repo root, split by AUDIENCE:
+
+- `README.md` + `docs/` — **for humans.** The front page GitHub renders, plus the campaign
+  procedures it links.
+- `claude_dev/` — **primarily for Claude:** the engineering record you read to make a
+  decision. `unification/` (the finished five-repo merge — design notes, per-phase notes,
+  gate instruments, `capability_matrix.py`), `dataloading/` (April 2026 data + DDP design
+  notes), `papers/` (reading material; notes tracked, sources not). **A new project gets a
+  new subdirectory there** — not a new top-level folder, and not a file in `unification/`,
+  whose name means that one finished merge. See `claude_dev/README.md`.
+
+Plus `slurm/` (launchers), `scripts/bench/pt/` (inference benchmark), `demos/`, `test_data/`.
 
 # The other repos on disk
 
@@ -179,7 +188,7 @@ the per-job `$TMPDIR/canvit_src`, prepending that snapshot to `PYTHONPATH` with
 # History
 
 This repo is the result of merging five repos into one. The narrative lives in
-`unification_docs/`, not here:
+`claude_dev/unification/`, not here:
 
 | doc | what happened |
 |---|---|

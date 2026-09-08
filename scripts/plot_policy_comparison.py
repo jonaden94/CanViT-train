@@ -9,7 +9,7 @@ Two stages, so re-styling the plot costs no GPU:
               the policy run group's logs, cache everything to JSON
   plot     -> read the JSON, draw
 
-    python scripts/plot_policy_comparison.py --out readme_docs/assets/ComparisonPoliciesADE20K.png
+    python scripts/plot_policy_comparison.py --out docs/assets/ComparisonPoliciesADE20K.png
     python scripts/plot_policy_comparison.py --from-cache ...   # re-plot only
 
 `--reuse-baselines <old cache>` re-reads only the trained-Q seeds and copies the baseline
@@ -206,9 +206,9 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", type=Path,
-                   default=REPO / "readme_docs/assets/ComparisonPoliciesADE20K.png")
+                   default=REPO / "docs/assets/ComparisonPoliciesADE20K.png")
     p.add_argument("--cache", type=Path,
-                   default=REPO / "readme_docs/assets/_policy_comparison_data.json")
+                   default=REPO / "docs/assets/_policy_comparison_data.json")
     p.add_argument("--from-cache", action="store_true",
                    help="skip all evaluation, re-plot from --cache")
     p.add_argument("--trained-dir", type=Path, default=TRAINED_DIR,

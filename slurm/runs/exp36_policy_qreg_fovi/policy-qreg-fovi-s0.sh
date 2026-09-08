@@ -25,7 +25,7 @@
 #
 # RAN 2026-08-31, ten seeds (jobs 15654175-15654184), and it worked: miou t4 = 0.450 +- 0.003
 # against 0.428 for random viewpoints, with eval/miou_t0 = 0.3768 on every seed. Results and
-# what they do and do not establish: readme_docs/q_policy_foveated.md.
+# what they do and do not establish: docs/q_policy_foveated.md.
 #
 # THE PATHS BELOW PREDATE the 2026-09-03 rename of repos/CanViT-train -> repos/canvit, so
 # this script now stops at its own probe-completion guard. Left as-is on purpose: it is the
@@ -45,7 +45,7 @@
 # dimension. (per_rollout/per_glimpse differ: there t0 falls back to scale 1, a true
 # full-image anchor.)
 #
-# Full procedure: readme_docs/q_policy_foveated.md
+# Full procedure: docs/q_policy_foveated.md
 # 10 seeds: for s in 0 1 2 3 4 5 6 7 8 9; do SEED=$s bash slurm/runs/exp36_policy_qreg_fovi/policy-qreg-fovi-s0.sh; done
 set -euo pipefail
 

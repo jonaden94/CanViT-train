@@ -21,7 +21,7 @@ checkpoints/
 *.pt
 *.png
 # ...except figures embedded in the documentation, which have to ship with it
-!readme_docs/assets/*.png
+!docs/assets/*.png
 
 # macOS
 *.DS_Store
@@ -34,11 +34,10 @@ throwaway/
 profile_*.json
 misc/
 logs/
-plan_dataloading/
 .claude
 slurm/canvit_train_state.venv-cu126/
 .venv-cu126/
-papers
+/papers
 
-# bench/pt writes fresh timing runs here; only baselines/ is committed
-bench/pt/results/
+# scripts/bench/pt writes fresh timing runs here; only baselines/ is committed
+scripts/bench/pt/results/
