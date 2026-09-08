@@ -32,7 +32,7 @@ class Config:
     image: Path = Path("test_data/Places365_IMG_9600.jpeg")
     canvas_grid: int = 32
     glimpse_px: int = 128
-    output: Path = Path("outputs/demo.png")
+    output: Path = Path("scripts/demos/outputs/demo.png")
 
 
 class Step(NamedTuple):
