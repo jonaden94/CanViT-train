@@ -117,6 +117,19 @@ Each of these has cost someone real time.
   by id, assert on names, never iterate `api.projects(entity)` and act.
 - **`git mv` on a directory carries untracked `__pycache__` with it**, and preserves mtimes,
   so Python keeps using stale bytecode whose paths no longer exist. Purge after any rename.
+- **The pretraining model's `forward` takes `image=`; the classification and segmentation
+  wrappers take `glimpse=`.** Both are keyword-only, so a mix-up is a `TypeError` — which
+  only helps if someone RUNS the file. It has now silently broken two of the three files
+  that touch those wrappers: `scripts/bench/pt/run.py` (passed `glimpse=` to bare CanViT;
+  found 2026-09-02, the benchmark had not run for some time) and `scripts/demos/classify.py`
+  (passed `image=` to the classifier; broken 2026-09-03 to 2026-09-08). **Run the file after
+  touching either call.**
+- **Launchers live in `slurm/`; one-off instruments live beside their record.** `slurm/runs/`
+  holds the reusable, copyable launchers (all of them submit; `scripts/` contains no
+  `sbatch` at all). The 8 `.sbatch` gate scripts and the parity probes under
+  `claude_dev/unification/` belong to the investigation that used them, not to `slurm/`.
+  `scripts/` is for what you run yourself now — an eval driver, a figure generator, the
+  benchmark, the demos.
 
 # Environments
 

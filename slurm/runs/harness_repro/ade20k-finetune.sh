@@ -10,14 +10,17 @@
 # NOTHING IS SUBMITTED by writing this file.
 set -euo pipefail
 
+RUN_GROUP=harness_repro
 RUN_NAME=ade20k-finetune
 TIME=0-08:00:00
 MEM=64G
 NGPU=1
 TASK=ade20k
 
-# ade20k reads its data root from ADE20K_ROOT (Ade20kConfig._default_ade20k_root); it has
-# no run_group (harness_train.sbatch requires RUN_GROUP for distill only).
+# ade20k reads its data root from ADE20K_ROOT (Ade20kConfig._default_ade20k_root).
+# RUN_GROUP is required for EVERY task -- harness_train.sbatch has enforced that since
+# 55bdd10 (2026-07-27), and `--cfg.run-group` is required by the CLI too since 8f597d0,
+# so a run without one cannot start and cannot write outside $LOGS_DIR.
 export ADE20K_ROOT=/mnt/vast-nhr/projects/nib00021/jonathan/datasets/zhoubolei--scene_parse_150/ADEChallengeData2016
 
 CFG_WANDB_PROJECT=harness_repro
@@ -34,8 +37,8 @@ FOVI_COMMIT=c399d3b
 # Repo root, derived from this script's own location (slurm/runs/<group>/<run>.sh),
 # so the run submits from YOUR clone rather than one hardcoded checkout.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-mkdir -p logs/ade20k
-export TASK NGPU EXTRA_ARGS ADE20K_ROOT PRETRAIN_COMMIT PYTORCH_COMMIT FOVI_COMMIT
+mkdir -p "logs/$RUN_GROUP/$RUN_NAME/log"
+export TASK RUN_GROUP RUN_NAME NGPU EXTRA_ARGS ADE20K_ROOT PRETRAIN_COMMIT PYTORCH_COMMIT FOVI_COMMIT
 for v in $(compgen -v); do [[ "$v" == CFG_* ]] && export "$v"; done
 
 sbatch \
@@ -43,7 +46,7 @@ sbatch \
     --ntasks-per-node=$NGPU \
     --mem=$MEM \
     --time=$TIME \
-    --output="logs/ade20k/harness-finetune-%j.log" \
-    --error="logs/ade20k/harness-finetune-%j.log" \
+    --output="logs/$RUN_GROUP/$RUN_NAME/log/job-%j.log" \
+    --error="logs/$RUN_GROUP/$RUN_NAME/log/job-%j.log" \
     --export=ALL \
     slurm/harness_train.sbatch
