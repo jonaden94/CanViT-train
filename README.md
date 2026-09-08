@@ -216,7 +216,7 @@ prefer this repo's equivalents:
 
 | clone | superseded by | kept because |
 |---|---|---|
-| `CanViT-PyTorch/` | [`canvit/core/`](canvit/core/) | 116 launchers `git archive` a core commit out of its `.git` to pin long runs — see its `ARCHIVED.md` for the import-path rule, the `PYTORCH_COMMIT` rule, and two defects left in its final state |
+| `CanViT-PyTorch/` | [`canvit/core/`](canvit/core/) | 106 launchers `git archive` a core commit out of its `.git` to pin long runs — see its `ARCHIVED.md` for the import-path rule, the `PYTORCH_COMMIT` rule, and two defects left in its final state |
 | `CanViT-eval/` | `canvit.harness.evaluate` | its `results/` are the historical record (its `reconstruction` task's `*_cos_raw` numbers are wrong — see its `ARCHIVED.md`) |
 | `CanViT-specialize/`, `CanViT-PyTorch-RL/` | `canvit.{ade20k,in1k}`, `canvit.harness.policy` | pre-unification reference for the downstream and RL recipes |
 
@@ -534,9 +534,9 @@ Two legacy spellings are still accepted, because dropping either would leave old
 running the editable install with no error at all:
 
 - **`PRETRAIN_COMMIT`** — what `TRAIN_COMMIT` was called before this repo was renamed.
-  Around 48 launchers under `slurm/` use it to reproduce older experiments.
+  88 launchers under `slurm/` set it, to reproduce older experiments.
 - **`PYTORCH_COMMIT`** — pinned the model when it was a separate repo, before the
-  2026-09-03 core merge. Around 116 launchers set it. For those, it is still load-bearing:
+  2026-09-03 core merge. 106 launchers set it. For those, it is still load-bearing:
   their pinned `TRAIN_COMMIT` predates the merge, so its code imports the top-level
   `canvit_pytorch`, which only that snapshot supplies. **New launchers must not set it** —
   `TRAIN_COMMIT` now pins the model too, and `PYTORCH_COMMIT` would have no effect.

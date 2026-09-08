@@ -26,7 +26,7 @@ verified where a docstring was ambiguous (tyro duplicate-flag precedence, strict
 | `run_group` / `run_name` / `logs_dir` | ✅ cfg | ✅ cfg (**new**) | ✅ cfg (**new**) | one `_identity()` in cli.py resolves all three |
 | wandb run name | cfg.run_name | cfg.run_name (**was hardcoded `"ade20k"`**) | cfg.run_name (**was the constant `"in1k-clf"`**) | both standalones honor it now too |
 | run dir (`visualization/`) | derived | derived (**was `--opts.run-dir` only**) | derived (**same**) | `logs_dir/run_group/run_name` |
-| ckpt dir | `run_dir/checkpoints` | ditto, else flat `probe_ckpt_dir` | ditto, else flat `clf_ckpt_dir` | **was: flat dir ALWAYS → cross-run clobber** |
+| ckpt dir | `run_dir/checkpoints` | ditto, else flat `probe_ckpt_dir` | ditto, else flat `clf_ckpt_dir` | **was: flat dir ALWAYS → cross-run clobber** — *and the `else flat …` half is itself superseded, see the note below* |
 | `seed` | ✅ cfg | ✅ cfg (**new**) | ✅ cfg | standalone ade20k had NO seed at all |
 | `--opts.seed/-eval-every/-n-steps/-ckpt-every/-resume` | ✅ | ✅ | ✅ | already uniform |
 | `--opts.ema-alpha` | ✅ (**new**) | ✅ (**new**) | ✅ (**new**) | was reachable only via distill's cfg |
@@ -37,6 +37,14 @@ verified where a docstring was ambiguous (tyro duplicate-flag precedence, strict
 | `seed_ckpt` (local weights) | ✅ cfg | ❌ | ❌ | see (e), deliberate |
 | `tracker` / `wandb_project` / `_entity` / `_dir` | ✅ | ✅ | ✅ | `$WANDB_PROJECT` now defaults for distill too |
 | DDP | ✅ shards by rank | ⛔ **refused** (3 guards) | ✅ shards by rank | see (c) |
+
+> **Superseded 2026-09-08 (commit `8f597d0`), ckpt-dir row only.** The `else flat
+> probe_ckpt_dir / clf_ckpt_dir` fallback is gone, and so are both config fields.
+> `--cfg.run-group` is now REQUIRED, so `run_dir/checkpoints` is the only derived location
+> for all three tasks and `--opts.ckpt-dir` the only override. The fallback resolved
+> relative to the LAUNCH CWD, so interactive runs from the repo root accumulated 3 GB of
+> checkpoints there while launcher-submitted runs went to `logs/`; and distill, having no
+> such field, wrote nothing at all without a run group. The rest of this table stands.
 
 ## Fixed here
 

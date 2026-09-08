@@ -43,7 +43,7 @@ canvit/
 ├── core/        THE MODEL — canvas ViT, patchers, HF-hub classes, probes, teacher,
 │                standardizers, viewpoint, rope. Imports nothing from the layers below.
 ├── harness/     entry point + shared primitives
-│                run cli loop spec config flat; rollout/ policy/ optim/ infra/ viz/
+│                run evaluate cli loop spec config flat; rollout/ policy/ optim/ infra/ viz/
 ├── distill/     DINOv3 latent distillation: loss, model, probe, data/, viz/
 ├── ade20k/      ADE20K segmentation: data, metrics, rollout, viz
 ├── in1k/        ImageNet-1k: data, metrics, model, eval, rollout
@@ -73,7 +73,7 @@ this repo's equivalent:
 
 | clone | superseded by | why it is kept |
 |---|---|---|
-| `CanViT-PyTorch/` | `canvit.core` | ~116 launchers `git archive` a core commit out of its `.git`. **Must stay on disk permanently.** |
+| `CanViT-PyTorch/` | `canvit.core` | 106 launchers `git archive` a core commit out of its `.git`. **Must stay on disk permanently.** |
 | `CanViT-eval/` | `canvit.harness.evaluate` | its `results/` are the historical record — but see its `ARCHIVED.md`: the `reconstruction` task's `*_cos_raw` numbers are wrong |
 | `CanViT-specialize/` | `canvit.{ade20k,in1k}` | pre-unification reference for the downstream recipes |
 | `CanViT-PyTorch-RL/` | `canvit.core.policy` + `canvit.harness.policy` | pre-unification reference for the RL recipes; has its own `CLAUDE.md` governing work inside it |
@@ -144,6 +144,9 @@ The variables that matter: `LOGS_DIR`, `WEBDATASET_DIR`, `VAL_DIR`, `VAL_INDEX_D
 `ADE20K_ROOT`, `IN1K_TRAIN_DIR`, `IN1K_VAL_DIR`, `HF_HOME`, `HF_TOKEN`, `WANDB_DIR`,
 `WANDB_PROJECT`, `WANDB_ENTITY`. Full table and first-time setup: `README.md`.
 
+`IN1K_TRAIN_DIR` / `IN1K_VAL_DIR` are the exception: `.envrc.grete` does NOT set them, and
+`in1k/config.py`'s `_default_in1k_{train,val}_dir` fall back to hardcoded project paths.
+
 # Commit pinning — why editing the repo is safe during live jobs
 
 The venvs are editable installs, so in principle a running job would pick up a mid-run edit.
@@ -158,8 +161,8 @@ the per-job `$TMPDIR/canvit_src`, prepending that snapshot to `PYTHONPATH` with
   and does not touch HEAD or the working tree.
 - Launcher scripts and `.envrc.grete` are read at submit time, so editing them is always
   safe.
-- Legacy spellings still accepted: `PRETRAIN_COMMIT` (≈48 launchers) and `PYTORCH_COMMIT`
-  (≈116) — see Gotchas.
+- Legacy spellings still accepted: `PRETRAIN_COMMIT` (88 launchers set it) and
+  `PYTORCH_COMMIT` (106) — see Gotchas.
 - **Workflow:** edit → commit/push → submit runs pinning the new hash.
 
 # Guardrails
