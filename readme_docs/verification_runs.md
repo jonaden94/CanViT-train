@@ -256,7 +256,7 @@ random-view `miou_final`.
 uniform counterpart at t0 and spends the curve catching up, because for a fixed-scale
 foveated backbone t0 is a scale-2.0 foveation rather than a full-image view.
 
-**"Coarse-to-fine" is only literally true for the uniform arms.** `--override-scale`
+**"Coarse-to-fine" is only literally true for the uniform arms.** `--cfg.eval-override-scale`
 overwrites every generated scale and keeps the generated CENTERS, so the pinned foveated
 arms run all 21 glimpses at the identical scale-2.0 foveation pattern, moved along the
 quadtree's centre schedule (centre → 4 quadrant centres → 16 sub-quadrant centres). The
@@ -393,5 +393,7 @@ An exp34 checkpoint also works directly as `--cfg.probe-repo` for a policy run, 
 conversion. Publishing goes through `canvit.checkpoint.to_hf` (whole models) or
 `canvit.checkpoint.probe_to_hf` (the segmentation head alone).
 
-exp32's pretraining checkpoints always carried their full architecture, which is why `to_hf`
-accepts them and refuses the others.
+`to_hf` auto-detects which layout to write from the payload: a distill checkpoint becomes
+the `CanViTForPretrainingHFHub` layout, an in1k one the `CanViTForImageClassification`
+layout (`metadata.task == "in1k"`). An ADE20K probe is the one that does not go through it —
+its head is published with `probe_to_hf`.
