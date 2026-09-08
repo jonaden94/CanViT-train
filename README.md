@@ -76,7 +76,7 @@ with torch.inference_mode():
 # The canvas contains the model's working understanding of
 # the scene at any given time, and is linearly decodable
 # into dense predictions upon token-wise LayerNorm.
-# See `demos/basic.py` for how to visualize the canvas.
+# See `scripts/demos/basic.py` for how to visualize the canvas.
 canvas_spatial = model.get_spatial(out.state.canvas)  # [1, 1024, 1024]
 canvas_spatial = canvas_spatial.unflatten(1, (32, 32))  # [1, 32, 32, 1024] — spatial feature map
 out.state.recurrent_cls  # [1, 1, 768] — global CLS token
@@ -163,14 +163,14 @@ The standalone `SegmentationProbe` head is also exported from `canvit.core` for 
 
 ```bash
 # Classification with sequential glimpses
-.venv/bin/python demos/classify.py                # finetuned checkpoint
-.venv/bin/python demos/classify.py --mode frozen  # frozen CanViT + fused probe
+.venv/bin/python scripts/demos/classify.py                # finetuned checkpoint
+.venv/bin/python scripts/demos/classify.py --mode frozen  # frozen CanViT + fused probe
 
 # Canvas PCA visualization with two viewing strategies
-.venv/bin/python demos/basic.py
+.venv/bin/python scripts/demos/basic.py
 ```
 
-`demos/basic.py` needs the `demo` extra (`uv sync --extra demo`) for scikit-learn.
+`scripts/demos/basic.py` needs the `demo` extra (`uv sync --extra demo`) for scikit-learn.
 
 ## Supported platforms
 

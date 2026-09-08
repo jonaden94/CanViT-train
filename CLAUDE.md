@@ -67,7 +67,7 @@ Also at the repo root, split by AUDIENCE:
   new subdirectory there** — not a new top-level folder, and not a file in `unification/`,
   whose name means that one finished merge. See `claude_dev/README.md`.
 
-Plus `slurm/` (launchers), `scripts/bench/pt/` (inference benchmark), `demos/`, `test_data/`.
+Plus `slurm/` (launchers), `scripts/bench/pt/` (inference benchmark), `scripts/demos/`, `test_data/`.
 
 # The other repos on disk
 

@@ -5,8 +5,8 @@ through different sequences of glimpses. The canvas PCA at each timestep shows
 how CanViT integrates information regardless of viewing order.
 
 Usage:
-    uv run --extra demo python demos/basic.py
-    uv run --extra demo python demos/basic.py --image path/to/image.jpg
+    uv run --extra demo python scripts/demos/basic.py
+    uv run --extra demo python scripts/demos/basic.py --image path/to/image.jpg
 """
 
 from dataclasses import dataclass

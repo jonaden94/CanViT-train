@@ -8,9 +8,9 @@ Both produce the same forward API. The model processes glimpses
 sequentially, refining its prediction with each new observation.
 
 Usage:
-    uv run --extra demo python demos/classify.py
-    uv run --extra demo python demos/classify.py --image path/to/image.jpg
-    uv run --extra demo python demos/classify.py --mode frozen
+    uv run --extra demo python scripts/demos/classify.py
+    uv run --extra demo python scripts/demos/classify.py --image path/to/image.jpg
+    uv run --extra demo python scripts/demos/classify.py --mode frozen
 """
 
 import argparse
@@ -64,7 +64,7 @@ def classify(clf: CanViTForImageClassification, image: torch.Tensor) -> None:
                 scales=torch.tensor([s], device=image.device),
             )
             glimpse = sample_at_viewpoint(spatial=image, viewpoint=vp, glimpse_size_px=GLIMPSE_PX)
-            logits, state = clf(image=glimpse, state=state, viewpoint=vp)
+            logits, state = clf(glimpse=glimpse, state=state, viewpoint=vp)
 
             probs = torch.softmax(logits, dim=-1)
             top = probs[0].topk(1)

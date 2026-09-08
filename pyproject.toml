@@ -34,7 +34,7 @@ dependencies = [
 [project.optional-dependencies]
 # Was canvit-pytorch's [demo] extra. Everything else it listed -- matplotlib, timm,
 # transformers, tyro, dinov3-in1k-probes -- is a base dependency here, so only the one
-# demos/basic.py import that nothing else needs is left optional.
+# scripts/demos/basic.py import that nothing else needs is left optional.
 demo = ["scikit-learn>=1.7.0"]
 
 [build-system]
