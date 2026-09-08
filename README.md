@@ -342,7 +342,8 @@ one task; each task folder holds only what is specific to that task.**
 canvit/
 ├── core/             THE MODEL — canvas ViT, patchers, HF-hub classes, probes, teacher
 ├── harness/          the entry point + every shared primitive
-│   ├── run.py        process entry point
+│   ├── run.py        process entry point — training
+│   ├── evaluate.py   process entry point — standalone eval of a finished checkpoint
 │   ├── cli.py        tyro CLI; task × --preset → TrainSpec
 │   ├── loop.py       training loop: cadence, validation, checkpointing
 │   ├── spec.py       TrainSpec / BpttSpec / GroupOptim + validation
@@ -360,15 +361,15 @@ canvit/
 
 `core/` is the model and is the layer everything else sits on: `model/` (pretraining,
 classification, segmentation wrappers + the HF-hub mixin), `patcher/` (uniform, foveated,
-square), `backbone/`, `teacher/`, `probes/`, `policies/`, `policy/` (the learned scorer net),
-`viewpoint/`, `rope/`, `preprocess/`, `standardizers/`, `metrics.py`, `data/`. Nothing in
-`core/` may import from `harness/`, `distill/`, `ade20k/` or `in1k/` — one grep checks it:
+square), `backbone/`, `attention/`, `teacher/`, `probes/`, `policies/`, `policy/` (the
+learned scorer net), `viewpoint/`, `rope/`, `vpe/`, `coords/`, `preprocess/`,
+`standardizers/`, `metrics.py`, `data/`. Nothing in `core/` may import from `harness/`, `distill/`, `ade20k/` or `in1k/` — one grep checks it:
 
 ```bash
 grep -rn "from canvit\.\(harness\|distill\|ade20k\|in1k\)" canvit/core/
 ```
 
-The five flat files in `harness/` are the ones to read first; the subpackages are
+The six flat files in `harness/` are the ones to read first; the subpackages are
 the machinery. Every task folder has the same shape: `task.py` (the adapter the
 framework calls — build model, build loaders, evaluate, visualize), `config.py`
 (that task's knobs), plus its own data / metrics / rollout helpers.
@@ -587,7 +588,7 @@ Details, and every defect found while unifying the two eval paths:
 .venv-cu126/bin/python -m pytest canvit
 ```
 
-493 tests: the model (`canvit/core/`), the rollout engine, specification resolution, the RL
+519 tests: the model (`canvit/core/`), the rollout engine, specification resolution, the RL
 objectives, each task's adapter, checkpoint round-trips, and the import-provenance guards.
 They run on CPU — use `.venv-cu126`, since the **digest tests** pin CPU numerics against
 hashes recorded under that torch build and a different build fails them.

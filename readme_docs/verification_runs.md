@@ -238,7 +238,7 @@ script loops the four arms through `python -m canvit.harness.evaluate ade20k`, w
 model through the ADE20K task and loads the probe's `best.pt` into it — no HF export step.
 Full ADE20K val (2000 images), `squish-512`, `canvas_grid 32`, batch 16, each arm against
 the backbone its probe was trained on. The two FOVEATED arms add
-`--override-scale 2.0 --fixed-scale 2.0`.
+`--cfg.eval-override-scale 2.0 --cfg.foveated-scale.fixed-scale 2.0`.
 
 mIoU in %, measured 2026-08-02 on each run's `checkpoints/best.pt`:
 
@@ -384,7 +384,7 @@ Checkpoints from exp33 and exp34 are **self-describing**: they record the archit
 just a path to the model they started from, so they load without their source repo:
 
 ```python
-from canvit_pytorch.model_source import load_classifier, load_segmentation
+from canvit.core.model_source import load_classifier, load_segmentation
 clf = load_classifier("logs/jon_exp33_in1k_finetune/<run>/checkpoints/best.pt")
 seg = load_segmentation("logs/jon_exp34_ade20k_probe/<run>/checkpoints/best.pt")
 ```
