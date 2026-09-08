@@ -460,6 +460,10 @@ $LOGS_DIR/<run_group>/<run_name>/
 └── visualization/    figures, written locally and never uploaded
 ```
 
+`<run_group>` comes from `--cfg.run-group` and is **required** — a run without one is
+refused, so nothing is ever written outside `$LOGS_DIR`. `<run_name>` is optional
+(`--cfg.run-name`); unset, it is derived from the task and a timestamp.
+
 Start-up mode is decided by priority **resume > seed > fresh**. `--opts.resume`
 continues a run with its optimizer, scheduler and data schedule intact (the
 default for `distill`, whose array tasks must chain; off by default for the

@@ -18,7 +18,10 @@ The two properties that matter here and are easy to get wrong:
 
 import pytest
 
+from canvit.ade20k.config import Ade20kConfig
+from canvit.distill.config import Config as DistillConfig
 from canvit.harness.cli import Ade20kCmd, DistillCmd, In1kCmd, SpecOverrides, resolve_spec
+from canvit.in1k.config import In1kConfig
 from canvit.harness.spec import check_spec
 
 _PRESETS = ("default", "probe", "finetune", "policy_only", "joint")
@@ -26,8 +29,11 @@ _PRESETS = ("default", "probe", "finetune", "policy_only", "joint")
 
 @pytest.fixture(scope="module")
 def tasks():
-    return {"ade20k": Ade20kCmd().build()[0], "in1k": In1kCmd().build()[0],
-            "distill": DistillCmd().build()[0]}
+    # run_group: every run needs one (it fixes where artifacts go); these only build
+    # tasks to check SPEC resolution, so any group does.
+    return {"ade20k": Ade20kCmd(cfg=Ade20kConfig(run_group="g")).build()[0],
+            "in1k": In1kCmd(cfg=In1kConfig(run_group="g")).build()[0],
+            "distill": DistillCmd(cfg=DistillConfig(run_group="g")).build()[0]}
 
 
 # --- transparency: the gate the digests depend on --------------------------------

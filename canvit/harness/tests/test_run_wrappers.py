@@ -138,9 +138,9 @@ def test_distill_param_group_is_whole_model():
 
 # --- CLI glue: command dataclasses + resolve_spec preset matrix ------------
 def test_cli_preset_matrix_head_aware():
-    ade, _ = Ade20kCmd().build()
-    in1k, _ = In1kCmd(opts=HarnessOpts(n_steps=10)).build()
-    distill, _ = DistillCmd(cfg=Config(webdataset_dir=Path("/x"))).build()
+    ade, _ = Ade20kCmd(cfg=Ade20kConfig(run_group="g")).build()
+    in1k, _ = In1kCmd(cfg=In1kConfig(run_group="g"), opts=HarnessOpts(n_steps=10)).build()
+    distill, _ = DistillCmd(cfg=Config(webdataset_dir=Path("/x"), run_group="g")).build()
     # head-bearing tasks: all presets that make sense validate
     for t in (ade, in1k):
         for preset in ("default", "probe", "finetune", "policy_only", "joint"):
@@ -176,7 +176,8 @@ def test_cli_task_config_drives_settings():
     """Every RunSettings knob that has a task-config counterpart comes FROM the config,
     so there is no second place to set the same thing."""
     cfg = Config(webdataset_dir=Path("/x"), compile=False, amp=False, grad_clip=0.5,
-                 log_every=7, val_every=13, seed=5, steps_per_job=64, tracker="none")
+                 log_every=7, val_every=13, seed=5, steps_per_job=64, tracker="none",
+                 run_group="g")
     _, s = DistillCmd(cfg=cfg).build()
     assert (s.compile, s.amp, s.grad_clip, s.log_every, s.eval_every, s.seed, s.n_steps) == \
         (False, False, 0.5, 7, 13, 5, 64)
@@ -205,8 +206,8 @@ def test_run_identity_is_uniform_across_tasks():
     """Every task resolves its run identity the same way: the wandb name IS cfg.run_name
     and the artifact root IS cfg.logs_dir/run_group/run_name. ade20k used to hardcode the
     name "ade20k" (so exp24's three probes were indistinguishable in the UI) and its
-    checkpoints always went to the one flat cfg.probe_ckpt_dir, where a second run would
-    overwrite the first's best.pt."""
+    checkpoints always went to a flat cfg.probe_ckpt_dir under the launch cwd, where a
+    second run would overwrite the first's best.pt."""
     logs = Path("/logs")
     cmds = {
         "ade20k": Ade20kCmd(cfg=Ade20kConfig(tracker="none", run_group="exp24",
@@ -224,14 +225,18 @@ def test_run_identity_is_uniform_across_tasks():
         assert s.ckpt_dir is None, name
         assert s.tracker == "none" and s.wandb_project == cmd.cfg.wandb_project, name
 
-    # No run_group => no run dir, and the probes fall back to their flat legacy dir
-    # (unchanged behavior), with a task-prefixed auto name instead of a shared constant.
-    _, s = Ade20kCmd(cfg=Ade20kConfig(tracker="none")).build()
-    assert s.run_dir is None and s.ckpt_dir == Ade20kConfig().probe_ckpt_dir
-    assert s.run_name.startswith("ade20k_")
-    _, s = In1kCmd(cfg=In1kConfig(tracker="none")).build()
-    assert s.run_dir is None and s.ckpt_dir == In1kConfig().clf_ckpt_dir
-    assert s.run_name.startswith("in1k_")
+    # A run_group is MANDATORY, for every task. It used to be optional, and then
+    # ade20k/in1k wrote to a flat ./checkpoints relative to the launch cwd (3 GB of it
+    # accumulated at the repo root) while distill wrote no checkpoints whatsoever.
+    for cmd in (Ade20kCmd(cfg=Ade20kConfig(tracker="none")),
+                In1kCmd(cfg=In1kConfig(tracker="none")),
+                DistillCmd(cfg=Config(webdataset_dir=Path("/x"), tracker="none"))):
+        with pytest.raises(ValueError, match="--cfg.run-group is required"):
+            cmd.build()
+
+    # An unnamed ARM is still fine — only the group is required; the name is derived.
+    _, s = Ade20kCmd(cfg=Ade20kConfig(tracker="none", run_group="g", logs_dir=logs)).build()
+    assert s.run_name.startswith("ade20k_") and s.run_dir == logs / "g" / s.run_name
 
     # --opts overrides still win, for every task.
     opts = HarnessOpts(run_dir=Path("/elsewhere"), ckpt_dir=Path("/ckpts"), ema_alpha=0.0)
@@ -246,14 +251,15 @@ def test_run_identity_is_uniform_across_tasks():
 def test_in1k_derives_n_steps_from_max_steps():
     """in1k is now step-based like ade20k: n_steps/eval_every come from cfg.max_steps/
     val_every when --opts are unset, and --opts.n-steps overrides."""
-    cfg = In1kConfig(tracker="none", max_steps=1234, val_every=321)
+    cfg = In1kConfig(tracker="none", max_steps=1234, val_every=321, run_group="g")
     task, s = In1kCmd(cfg=cfg).build()
     assert s.n_steps == 1234 and s.eval_every == 321
     assert task.total_steps == 1234  # single job: horizon == run length
     s2 = In1kCmd(cfg=cfg, opts=HarnessOpts(n_steps=10)).build()[1]
     assert s2.n_steps == 10
     # array mode: n_steps = per-job window (steps_per_job); LR horizon = full run (max_steps)
-    at, asettings = In1kCmd(cfg=In1kConfig(tracker="none", max_steps=192_000, steps_per_job=6_400)).build()
+    at, asettings = In1kCmd(cfg=In1kConfig(tracker="none", max_steps=192_000,
+                                           steps_per_job=6_400, run_group="g")).build()
     assert asettings.n_steps == 6_400 and at.total_steps == 192_000 and at._steps_per_job == 6_400
 
 
@@ -292,7 +298,8 @@ def test_in1k_shard_schedule_invariant_mismatch_refused():
 
 def test_comet_tracker_rejected_loudly():
     with pytest.raises(NotImplementedError, match="comet"):
-        DistillCmd(cfg=Config(webdataset_dir=Path("/x"), tracker="comet")).build()
+        DistillCmd(cfg=Config(webdataset_dir=Path("/x"), tracker="comet",
+                              run_group="g")).build()
 
 
 # --- LR-schedule reproduction (task default_spec vs the standalone recipes) ---
@@ -367,10 +374,11 @@ def test_opts_seed_overrides_task_seed():
     """--opts.seed wins over the task config's own seed; ade20k (no seed field)
     defaults to 0 and is settable — otherwise every harness ade20k run is byte-identical."""
     # ade20k: no cfg.seed field -> default 0, overridable
-    assert Ade20kCmd(cfg=Ade20kConfig(tracker="none")).build()[1].seed == 0
-    assert Ade20kCmd(cfg=Ade20kConfig(tracker="none"), opts=HarnessOpts(seed=7)).build()[1].seed == 7
+    ade_cfg = Ade20kConfig(tracker="none", run_group="g")
+    assert Ade20kCmd(cfg=ade_cfg).build()[1].seed == 0
+    assert Ade20kCmd(cfg=ade_cfg, opts=HarnessOpts(seed=7)).build()[1].seed == 7
     # distill: cfg.seed unless overridden
-    d = Config(webdataset_dir=Path("/x"), seed=3)
+    d = Config(webdataset_dir=Path("/x"), seed=3, run_group="g")
     assert DistillCmd(cfg=d).build()[1].seed == 3
     assert DistillCmd(cfg=d, opts=HarnessOpts(seed=7)).build()[1].seed == 7
 
@@ -380,13 +388,13 @@ def test_resume_default_is_per_task():
     ade20k/in1k False (single-job probes mirror the no-resume standalone, so a re-run
     into a populated dir starts fresh instead of silently continuing). --opts.resume
     overrides either way."""
-    d = Config(webdataset_dir=Path("/x"))
+    d = Config(webdataset_dir=Path("/x"), run_group="g")
+    ade_cfg = Ade20kConfig(tracker="none", run_group="g")
     assert DistillCmd(cfg=d).build()[1].resume is True
-    assert Ade20kCmd(cfg=Ade20kConfig(tracker="none")).build()[1].resume is False
-    assert In1kCmd(opts=HarnessOpts(n_steps=10)).build()[1].resume is False
+    assert Ade20kCmd(cfg=ade_cfg).build()[1].resume is False
+    assert In1kCmd(cfg=In1kConfig(run_group="g"), opts=HarnessOpts(n_steps=10)).build()[1].resume is False
     # explicit --opts.resume wins in both directions
-    assert Ade20kCmd(cfg=Ade20kConfig(tracker="none"),
-                     opts=HarnessOpts(resume=True)).build()[1].resume is True
+    assert Ade20kCmd(cfg=ade_cfg, opts=HarnessOpts(resume=True)).build()[1].resume is True
     assert DistillCmd(cfg=d, opts=HarnessOpts(resume=False)).build()[1].resume is False
 
 

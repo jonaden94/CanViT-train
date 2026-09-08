@@ -89,18 +89,18 @@ class HarnessOpts:
     log_timing: bool = True
 
 
-def _resolve_run_dir(logs_dir: Path, run_group: str | None, run_name: str | None,
-                     *, prefix: str = "") -> tuple[Path | None, str]:
-    """The ``logs_dir/run_group/run_name`` convention (train/loop.py 157-161): an
-    auto-generated timestamp name when unset, and no run dir at all without a group.
+def _resolve_run_dir(logs_dir: Path, run_group: str, run_name: str | None,
+                     *, prefix: str = "") -> tuple[Path, str]:
+    """The ``logs_dir/run_group/run_name`` convention (train/loop.py 157-161), with an
+    auto-generated timestamp name when ``run_name`` is unset. A group is MANDATORY (see
+    :func:`_identity`), so a run dir is always returned and run artifacts can never land
+    outside ``logs_dir``.
     ALL THREE tasks resolve their identity here — ade20k used to hardcode the tracker
     name ``"ade20k"`` and in1k defaulted to the constant ``"in1k-clf"``, so unnamed runs
     of either collided in the wandb UI. ``prefix`` labels the auto-generated name
     (distill passes none, keeping the old loop's bare timestamp)."""
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
     name = run_name or (f"{prefix}_{ts}" if prefix else ts)
-    if run_group is None:
-        return None, name
     return logs_dir / run_group / name, name
 
 
@@ -126,22 +126,35 @@ def _common(opts: HarnessOpts) -> dict[str, Any]:
     return out
 
 
-def _identity(cfg: Any, opts: HarnessOpts, *, prefix: str,
-              legacy_ckpt_dir: Path | None = None) -> dict[str, Any]:
+def _identity(cfg: Any, opts: HarnessOpts, *, prefix: str) -> dict[str, Any]:
     """Run identity + artifact roots + tracker, resolved THE SAME WAY for all three tasks
     from the config trio (``run_group`` / ``run_name`` / ``logs_dir``).
 
+    ``run_group`` is REQUIRED — a run without one is refused. It used to be optional, and
+    the fallback was silent and bad: no group meant no run dir, and ade20k/in1k then wrote
+    to a flat ``probe_ckpt_dir`` / ``clf_ckpt_dir`` (``$CHECKPOINTS_DIR`` or
+    ``checkpoints``, RELATIVE TO THE LAUNCH CWD), so an interactive run from the repo root
+    put 3 GB of checkpoints in ``canvit/checkpoints/`` while every launcher-submitted run
+    went to ``logs/``, and unrelated runs pooled in one directory overwriting each other's
+    ``best.pt``. distill had no such dir and wrote nothing at all.
+
     ``ckpt_dir`` precedence: ``--opts.ckpt-dir`` > ``run_dir/checkpoints`` (derived in
-    ``run()``) > the task's flat legacy dir (``probe_ckpt_dir`` / ``clf_ckpt_dir``).
-    ade20k/in1k previously took that flat dir UNCONDITIONALLY, so two runs sharing it
-    overwrote each other's ``best.pt`` / ``step-N.pt`` — every launcher had to pass
-    ``OPT_CKPT_DIR`` by hand to stay safe. distill passes no legacy dir (it has none)."""
+    ``run()``). There is no third option."""
+    # The tracker resolves FIRST so tracker="comet" keeps raising NotImplementedError
+    # rather than being masked by the run-group error.
+    tracker = _tracker(cfg.tracker)
+    if cfg.run_group is None:
+        raise ValueError(
+            "--cfg.run-group is required: it names the experiment this run belongs to and "
+            "fixes where every artifact goes (logs_dir/<run_group>/<run_name>/, holding "
+            "checkpoints/ and visualization/). Pass --cfg.run-group <experiment>, "
+            "optionally with --cfg.run-name <arm> — else the name is auto-generated from "
+            "the task and a timestamp.")
     run_dir, run_name = _resolve_run_dir(cfg.logs_dir, cfg.run_group, cfg.run_name, prefix=prefix)
-    run_dir = opts.run_dir or run_dir
     return {
-        "run_name": run_name, "run_dir": run_dir,
-        "ckpt_dir": opts.ckpt_dir or (None if run_dir is not None else legacy_ckpt_dir),
-        "tracker": _tracker(cfg.tracker), "wandb_project": cfg.wandb_project,
+        "run_name": run_name, "run_dir": opts.run_dir or run_dir,
+        "ckpt_dir": opts.ckpt_dir,
+        "tracker": tracker, "wandb_project": cfg.wandb_project,
         "wandb_entity": cfg.wandb_entity, "wandb_dir": cfg.wandb_dir,
     }
 
@@ -249,11 +262,10 @@ class Ade20kCmd:
             seed=self.opts.seed if self.opts.seed is not None else self.cfg.seed,
             device=self.cfg.device,
             resume=self.opts.resume if self.opts.resume is not None else False,
-            **_identity(self.cfg, self.opts, prefix="ade20k",
-                        legacy_ckpt_dir=self.cfg.probe_ckpt_dir),
+            **_identity(self.cfg, self.opts, prefix="ade20k"),
             **{**_common(self.opts),
                # specialize's segmentation overlay cadence (cfg.viz_every, default 500).
-               # Silently a no-op without a run dir, i.e. without cfg.run_group.
+               # Figures go to run_dir/visualization/, which every run now has.
                "viz_every": self.opts.viz_every or self.cfg.viz_every},
         )
         return Ade20kRunTask(self.cfg, rl=self.rl), settings
@@ -288,8 +300,7 @@ class In1kCmd:
             seed=self.opts.seed if self.opts.seed is not None else self.cfg.seed,
             device=self.cfg.device,
             resume=self.opts.resume if self.opts.resume is not None else False,
-            **_identity(self.cfg, self.opts, prefix="in1k",
-                        legacy_ckpt_dir=self.cfg.clf_ckpt_dir),
+            **_identity(self.cfg, self.opts, prefix="in1k"),
             **_common(self.opts),
         )
         return In1kRunTask(self.cfg, rl=self.rl, total_steps=self.cfg.max_steps), settings

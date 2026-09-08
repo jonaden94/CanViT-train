@@ -38,11 +38,6 @@ def _default_in1k_val_dir() -> Path:
     return Path("/mnt/vast-nhr/projects/nib00021/jonathan/datasets/imagenet1k-val")
 
 
-def _default_clf_ckpt_dir() -> Path:
-    base = os.environ.get("CHECKPOINTS_DIR", "checkpoints")
-    return Path(base) / "canvit-in1k-clf"
-
-
 @dataclass
 class In1kConfig:
     """CanViT ImageNet-1k classification: frozen-backbone linear probe (default)
@@ -171,7 +166,6 @@ class In1kConfig:
     device: str = "cuda"
     amp: bool = True
     seed: int = 0
-    clf_ckpt_dir: Path | None = field(default_factory=_default_clf_ckpt_dir)
 
     # Run identity — see Ade20kConfig for the shared contract. `run_name` used to default
     # to the constant "in1k-clf" and was read by the harness ONLY (the standalone always

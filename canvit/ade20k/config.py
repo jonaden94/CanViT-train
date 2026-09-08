@@ -28,11 +28,6 @@ def _default_wandb_dir() -> Path | None:
     return None
 
 
-def _default_probe_ckpt_dir() -> Path:
-    base = os.environ.get("CHECKPOINTS_DIR", "checkpoints")
-    return Path(base) / "canvit-ade20k-probes"
-
-
 def _default_ade20k_root() -> Path:
     if root := os.environ.get("ADE20K_ROOT"):
         return Path(root)
@@ -215,9 +210,9 @@ class Ade20kConfig:
 
     # Run identity — the same trio Config/In1kConfig carry, so every task names its runs
     # the same way. The harness derives BOTH the tracker run name and
-    # `logs_dir/run_group/run_name/` (checkpoints + visualization) from these. The
-    # standalone entry point honors `run_name` (tracker name + its checkpoint subdir) and
-    # ignores `run_group`/`logs_dir`: its artifact root is `probe_ckpt_dir`.
+    # `logs_dir/run_group/run_name/` (checkpoints + visualization) from these.
+    # `run_group` is REQUIRED: a run without one is refused, so no artifact can land
+    # outside `logs_dir`. `run_name` is derived when unset.
     run_group: str | None = None
     run_name: str | None = None
     """None => auto: the descriptive `ade20k_{model}_{T}t_s{scene}_c{grid}_{ts}` name in
@@ -230,9 +225,7 @@ class Ade20kConfig:
     viz_every: int = 500
     """Render the segmentation overlay figure every N steps (0 = off), for the training
     batch and the first val batch. Specialize's default, restored — but the figures go to
-    ``{run_dir}/visualization/seg_{train,val}/`` on disk instead of the wandb Media tab.
-    Harness only (the standalone renders no figures), and it needs a run dir: set
-    ``run_group`` (or ``--opts.run-dir``), else there is nowhere to write and viz is off."""
+    ``{run_dir}/visualization/seg_{train,val}/`` on disk instead of the wandb Media tab."""
     viz_samples: int = 4
     """Images per figure (one row each)."""
     device: str = "cuda"
@@ -241,7 +234,6 @@ class Ade20kConfig:
     """`torch.manual_seed(seed + rank)`. Historically the probe had NO seed at all (both
     entry points), which made A/B gates against it impossible — same config, different
     curve. Both honor it now; 0 keeps the value the harness was already passing."""
-    probe_ckpt_dir: Path | None = field(default_factory=_default_probe_ckpt_dir)
     tracker: Literal["comet", "wandb", "none"] = "wandb"
     wandb_project: str | None = field(default_factory=_default_wandb_project)
     wandb_entity: str | None = field(default_factory=_default_wandb_entity)
