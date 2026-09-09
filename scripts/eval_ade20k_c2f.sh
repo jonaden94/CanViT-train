@@ -22,13 +22,20 @@ set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GROUP=${1:-jon_exp34_ade20k_probe}
-OUT=${2:-logs/$GROUP/_c2f_eval}
+# Run artifacts follow $LOGS_DIR, not this clone: a second project member points LOGS_DIR
+# at a directory they own (README, first-time setup), so their probe runs are not under
+# ./logs at all. Falls back to ./logs, which is what LOGS_DIR is for the owner.
+RUNS_DIR="${LOGS_DIR:-$PWD/logs}"
+OUT=${2:-$RUNS_DIR/$GROUP/_c2f_eval}
 mkdir -p "$OUT"
 
 export ADE20K_ROOT=${ADE20K_ROOT:-/mnt/vast-nhr/projects/nib00021/jonathan/datasets/zhoubolei--scene_parse_150/ADEChallengeData2016}
 export HF_HUB_OFFLINE=1
 PY=.venv-cu126/bin/python
-SRC="$PWD/logs/jon_exp22_full_runs"
+# ABSOLUTE, not derived from this clone: logs/ is gitignored, so the four exp22 backbones
+# exist in exactly one place on the cluster (group-readable to HPC_nib00021) and a second
+# member's clone has no logs/ at all. Override with EXP22_DIR if you hold your own copies.
+SRC="${EXP22_DIR:-/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp22_full_runs}"
 
 # run_name : pretrained backbone the probe was trained on : override-scale ("" = uniform)
 RUNS=(
@@ -53,7 +60,7 @@ for entry in "${RUNS[@]}"; do
     # shuffles within each quadtree level, so the batch size changes the RNG pattern and
     # this script's earlier outputs were taken at 16.
     $PY -m canvit.harness.evaluate ade20k \
-        --opts.ckpt "logs/$GROUP/$run/checkpoints/best.pt" \
+        --opts.ckpt "$RUNS_DIR/$GROUP/$run/checkpoints/best.pt" \
         --opts.out "$OUT/$run.json" \
         --cfg.model-repo "$SRC/$repo" \
         --cfg.eval-policy coarse_to_fine --cfg.n-timesteps 21 \
