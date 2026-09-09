@@ -26,7 +26,7 @@ TASK=ade20k
 
 # === config (exp24 recipe) ===
 CFG_WANDB_PROJECT=exp30_ade20k_probe
-CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648-hf
+CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648-hf
 CFG_RESIZE_MODE=squish
 EXTRA_ARGS="--cfg.foveated-scale.fixed-scale 2.0"
 # =================

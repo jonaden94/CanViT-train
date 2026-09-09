@@ -18,7 +18,7 @@ TASK=in1k
 # === config (TPU recipe, batch-adapted) ===
 CFG_WANDB_PROJECT=exp25
 CFG_RUN_NAME=in1k-uni16-1516k      # wandb run name = the finetune BASE model (owner request)
-CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp22_full_runs/exp22-uniform16-lrdrop-1516k/checkpoints/step-319488-hf
+CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp22_full_runs/exp22-uniform16-lrdrop-1516k/checkpoints/step-319488-hf
 CFG_PROBE_REPO=canvit/dinov3-vitb16-lvd1689m-in1k-512x512-linear-clf-probe  # fused into the head (TPU parity; was a RANDOM head before the fix)
 CFG_MODE=finetune
 CFG_BATCH_SIZE=64

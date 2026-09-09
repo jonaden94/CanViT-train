@@ -27,9 +27,12 @@
 # against 0.428 for random viewpoints, with eval/miou_t0 = 0.3768 on every seed. Results and
 # what they do and do not establish: docs/q_policy_foveated.md.
 #
-# THE PATHS BELOW PREDATE the 2026-09-03 rename of repos/CanViT-train -> repos/canvit, so
-# this script now stops at its own probe-completion guard. Left as-is on purpose: it is the
-# record of what exp36 ran. Repoint the three paths to repos/canvit/logs/... to re-run it.
+# THE PATHS BELOW were written as repos/CanViT-train/... and were repointed to repos/canvit
+# on 2026-09-09, after the 2026-09-03 rename left the old prefix dangling and this script
+# stopping at its own probe-completion guard. They are absolute on purpose: the checkpoints
+# exist in exactly one place, mode 640 under group HPC_nib00021, so any project member can
+# read them without copying -- and `logs/` is gitignored, so a path derived from your own
+# clone would find nothing.
 #
 # The recipe is the exp35 policy arm with this backbone+probe swapped in and the grid matched
 # to the probe. That arm runs against the published UNIFORM backbone; this one is foveated,
@@ -67,8 +70,8 @@ NGPU=1                       # ade20k is single-GPU only (supports_ddp=False)
 TASK=ade20k
 
 # === the two halves of the model ===
-_PROBE_RUN=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints
-CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648.pt
+_PROBE_RUN=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints
+CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648.pt
 CFG_PROBE_REPO=$_PROBE_RUN/best.pt   # the training checkpoint itself; no conversion
 
 # === config (exp31 lossfix recipe; only the grid follows the probe) ===

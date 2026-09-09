@@ -20,7 +20,7 @@ TASK=ade20k
 
 # === config ===
 CFG_WANDB_PROJECT=exp24
-CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp22_full_runs/exp22-uniform16-teacherinit-lrdrop2-803k/checkpoints/step-16384-hf
+CFG_MODEL_REPO=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp22_full_runs/exp22-uniform16-teacherinit-lrdrop2-803k/checkpoints/step-16384-hf
 CFG_RESIZE_MODE=squish
 OPT_CKPT_DIR=logs/exp24/ade20k-uni16ti-803k/checkpoints
 # =================

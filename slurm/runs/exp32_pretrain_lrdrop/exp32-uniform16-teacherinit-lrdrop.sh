@@ -31,7 +31,7 @@ MEM=128G
 NGPU=1
 TASK=distill
 
-SEED_CKPT=/mnt/vast-nhr/projects/nib00021/jonathan/repos/CanViT-train/logs/jon_exp32_pretrain_lrdrop/exp32-uniform16-teacherinit/checkpoints/step-630784.pt
+SEED_CKPT=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp32_pretrain_lrdrop/exp32-uniform16-teacherinit/checkpoints/step-630784.pt
 if [ ! -f "$SEED_CKPT" ]; then
     echo "REFUSING: $SEED_CKPT does not exist yet."
     echo "Phase A (exp32-uniform16-teacherinit) has not reached step 630784."
