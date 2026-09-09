@@ -111,9 +111,31 @@ Each of these has cost someone real time.
 - **`PYTORCH_COMMIT` is load-bearing for those old launchers but must NOT be set by new
   ones.** `TRAIN_COMMIT` now pins model and trainer together; setting `PYTORCH_COMMIT` on a
   post-merge pin has no effect. The launcher warns in both failure directions.
-- **Use `.venv-cu126` for the test suite**, always. The four `test_task_digests.py` digests
+- **Use `.venv-cu126` for the test suite**, always. The eight `test_task_digests.py` digests
   pin *CPU* numerics against hashes recorded under that torch build; `.venv` (cu130) fails
-  exactly those four for that reason alone.
+  exactly those for that reason alone.
+- **A failing digest is a FINDING, not a chore. Never re-record it to make the suite
+  green.** `test_rollout_parity.py` (`9a0100a1a3de3acd`) and the eight in
+  `test_task_digests.py` exist to tell you that a change moved the numbers. Re-recording the
+  expected value destroys the only guard you had and the change ships silently — which is how
+  the harness policy gradient sat at 0.8x the reference for weeks. Find out WHY it moved
+  first; record a new value only once you can say what changed and why that is intended, and
+  say so in the commit. The two kinds differ: parity is an EQUIVALENCE digest (it certifies
+  agreement with the old trainer), the eight are PINNING digests ("today equals what was
+  recorded"), so a pre-existing bug is pinned in with everything else and neither is a
+  correctness claim.
+- **Run the whole suite before pinning a commit for a real job.** For the inner loop, select
+  by name — `-k foveated` (36 tests), `-k policy` (58), `-k digest` (9), or a single test with
+  `path::test_name`. `test_rollout_parity.py` is one test and ~20% of the runtime, so
+  `--ignore=canvit/harness/tests/test_rollout_parity.py` is the cheap partial run. Treat all
+  of these as convenience filters, never as a gate: `-k` matches the test id INCLUDING its
+  path, so it both over- and under-selects (`test_init_reference_mode.py` is a policy test
+  that `-k policy` misses). Every expensive bug here was a cross-cutting surprise that "only
+  touched" something else.
+- **Every test lives in a `<package>/tests/` directory** (`core/`, `harness/`, `ade20k/`,
+  `in1k/`, `distill/`, `checkpoint/`). A test file placed beside the code it tests will still
+  be collected, but it breaks the convention — and moving one later means fixing its relative
+  imports, INCLUDING the ones inside function bodies, which a `^from \.` grep does not see.
 - **Ask for a short `--time`; never mention QOS.** [owner, standing] A short job gets
   scheduled sooner than a long one, which is why the long runs are chunked into 2 h array
   tasks. Whether it formally lands in Grete's `2h` QOS or in `normal` does not matter — do
@@ -150,7 +172,7 @@ Each repo has its **own** uv-managed venv; a venv is an editable install of its 
 running it directly picks up your edits — no `PYTHONPATH` gymnastics.
 
 ```bash
-.venv-cu126/bin/python -m pytest canvit          # 519 tests
+.venv-cu126/bin/python -m pytest canvit          # 526 tests
 ```
 
 torch uses the GPU only if its CUDA build is `<=` the node's driver. Many compute nodes here

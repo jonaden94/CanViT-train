@@ -6,7 +6,7 @@ then nearest-upsample. That cost a measured 0.19 mIoU at t4 on ADE20K val (2 see
 import torch
 import torch.nn.functional as F
 
-from .metrics import preds_from_logits, upsample_preds
+from ..metrics import preds_from_logits, upsample_preds
 
 
 def test_matches_canvit_eval_and_the_rl_repo():
@@ -38,7 +38,7 @@ def test_probe_eval_uses_the_paper_order():
     silently drift back to argmax-first."""
     import inspect
 
-    from .metrics import eval_probe_on_batch
+    from ..metrics import eval_probe_on_batch
 
     src = inspect.getsource(eval_probe_on_batch)
     assert "preds_from_logits" in src

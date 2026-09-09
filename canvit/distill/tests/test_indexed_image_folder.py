@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from .indexed_image_folder import SCHEMA_VERSION, IndexedImageFolder, IndexMetadata
+from ..data.indexed_image_folder import SCHEMA_VERSION, IndexedImageFolder, IndexMetadata
 
 
 def test_index_metadata_fields() -> None:

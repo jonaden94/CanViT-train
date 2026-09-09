@@ -11,11 +11,11 @@ import torch
 from canvit.core import CanViTForSemanticSegmentation
 from canvit.core.patcher import FoveatedPatcherConfig
 
-from ..harness.rollout.episode import consumes_full_image
-from ..harness.rollout.eval_viewpoints import make_random_viewpoints
-from .data import IGNORE_LABEL, NUM_CLASSES
-from .metrics import ce_loss
-from .rollout import rollout_canvas_hidden
+from ...harness.rollout.episode import consumes_full_image
+from ...harness.rollout.eval_viewpoints import make_random_viewpoints
+from ..data import IGNORE_LABEL, NUM_CLASSES
+from ..metrics import ce_loss
+from ..rollout import rollout_canvas_hidden
 
 _B, _G, _T, _IMG = 2, 8, 2, 224
 _DEVICE = torch.device("cpu")
@@ -83,7 +83,7 @@ def test_square_patcher_also_routes_the_full_image() -> None:
 
 def test_glimpse_px_token_guard() -> None:
     """A glimpse_px that yields the wrong token count must fail loudly."""
-    from ..harness.rollout.episode import derive_glimpse_px
+    from ...harness.rollout.episode import derive_glimpse_px
 
     seg = _tiny_seg({})
     seg.canvit.glimpse_grid_size = 8  # 8 tokens/side @ patch 16 -> 128 px
@@ -99,7 +99,7 @@ def test_foveated_viewpoints_use_pretraining_scale() -> None:
     law, not the uniform safe-box one. exp22-fovi pretrained at fixed_scale=2.0;
     feeding it safe-box scales (<=1) made mIoU DROP with each glimpse (0.217 ->
     0.198) because every glimpse was out of distribution."""
-    from ..harness.config import FoveatedScaleConfig
+    from ...harness.config import FoveatedScaleConfig
 
     fs = FoveatedScaleConfig(mode="fixed", fixed_scale=2.0)
     vps = make_random_viewpoints(
@@ -125,7 +125,7 @@ def test_resize_modes_output_shape_and_geometry() -> None:
     flag lifted into Ade20kConfig/PolicyTrainConfig (default center_crop)."""
     from PIL import Image, ImageDraw
 
-    from .data import make_val_transforms
+    from ..data import make_val_transforms
 
     size = 64
     # 2:1 landscape image with a centered white disk (a distortion probe)

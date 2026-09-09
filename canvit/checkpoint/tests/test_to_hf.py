@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from .to_hf import build_config, extract_pretrain_view_scale, normalize_schema
+from ..to_hf import build_config, extract_pretrain_view_scale, normalize_schema
 
 
 def _raw(patcher: str, history: dict | None) -> dict:

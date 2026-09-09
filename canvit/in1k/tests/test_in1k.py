@@ -11,11 +11,11 @@ import torch
 from canvit.core import CanViTForImageClassification
 from canvit.core.patcher import FoveatedPatcherConfig
 
-from ..harness.rollout.episode import consumes_full_image
-from ..harness.rollout.eval_viewpoints import make_random_viewpoints
-from .config import FoveatedScaleConfig
-from .metrics import TopKAccuracy, ce_loss, topk_correct
-from .rollout import eval_viewpoints, rollout_cls_tokens
+from ...harness.rollout.episode import consumes_full_image
+from ...harness.rollout.eval_viewpoints import make_random_viewpoints
+from ..config import FoveatedScaleConfig
+from ..metrics import TopKAccuracy, ce_loss, topk_correct
+from ..rollout import eval_viewpoints, rollout_cls_tokens
 
 _IN1K_SHARDS = Path("/mnt/vast-nhr/projects/nib00021/jonathan/datasets") \
     / "webdataset-imagenet-1k-no-features/train-shuffled"
@@ -91,7 +91,7 @@ def test_eval_viewpoints_shapes() -> None:
 def test_train_pipeline_decodes_real_shards() -> None:
     """End-to-end on the real IN1k shards: the webdataset pipeline decodes
     jpg+json into (image [B,3,S,S], labels in [0,999]) with the train aug."""
-    from .data import build_train_pipeline, make_train_transform
+    from ..data import build_train_pipeline, make_train_transform
 
     size = 128  # small crop for a quick CPU decode; real runs use scene_size=512
     tfm = make_train_transform(size, min_scale=0.35, flip_prob=0.5)
@@ -112,3 +112,39 @@ def test_metrics_topk() -> None:
     acc = TopKAccuracy(ks=(1,))
     acc.update(logits, targets)
     assert abs(acc.compute()[1] - 2 / 3) < 1e-6
+
+
+def test_finetune_fuses_a_probe_head_and_frozen_does_not(monkeypatch):
+    """``mode=finetune`` MUST build its head from a pretrained DINOv3 probe, never a
+    random one.
+
+    A random head starts at chance (loss = ln(1000) ~ 6.9) and, at the finetune LR of
+    6.25e-6, never recovers — the run looks healthy and learns almost nothing. exp33 catches
+    this by eye ("watch the first train/full/loss sit well below 6.9"); this pins the
+    routing so a refactor cannot quietly swap the two branches. The constructors are
+    stubbed, so no weights are fetched and no network is touched.
+    """
+    from canvit.core import CanViTForImageClassification as Clf
+    from canvit.in1k import model as in1k_model
+
+    called: list[str] = []
+    monkeypatch.setattr(Clf, "from_pretrained_with_probe",
+                        classmethod(lambda cls, **kw: called.append("probe") or _Stub()))
+    monkeypatch.setattr(Clf, "from_pretrained_with_new_head",
+                        classmethod(lambda cls, **kw: called.append("new_head") or _Stub()))
+    monkeypatch.setattr(in1k_model, "_resolve_probe_repo", lambda cfg: "stub/probe")
+
+    from ..config import In1kConfig
+    in1k_model.build_classifier(In1kConfig(mode="finetune"), _DEVICE)
+    assert called == ["probe"], "finetune must fuse a pretrained probe into the head"
+
+    called.clear()
+    in1k_model.build_classifier(In1kConfig(mode="frozen"), _DEVICE)
+    assert called == ["new_head"], "frozen mode trains from zero, so a fresh head is right"
+
+
+class _Stub(torch.nn.Module):
+    """Stands in for the classifier; ``build_classifier`` only calls ``.to(device)``."""
+
+    def to(self, *a, **k):  # noqa: D102
+        return self

@@ -588,7 +588,7 @@ Details, and every defect found while unifying the two eval paths:
 .venv-cu126/bin/python -m pytest canvit
 ```
 
-519 tests: the model (`canvit/core/`), the rollout engine, specification resolution, the RL
+526 tests: the model (`canvit/core/`), the rollout engine, specification resolution, the RL
 objectives, each task's adapter, checkpoint round-trips, and the import-provenance guards.
 They run on CPU — use `.venv-cu126`, since the **digest tests** pin CPU numerics against
 hashes recorded under that torch build and a different build fails them.

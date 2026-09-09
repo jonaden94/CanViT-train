@@ -99,7 +99,7 @@ cu126 = [
 
 [tool.pytest.ini_options]
 testpaths = ["canvit"]
-python_files = ["test.py", "test_*.py"]
+python_files = ["test_*.py"]  # every test lives in a <package>/tests/ dir
 markers = [
     "slow: marks tests as slow (deselect with '-m not slow')",
     "network: marks tests that require network access (HF Hub downloads, etc.)",

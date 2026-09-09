@@ -193,3 +193,16 @@ class TestCanViTForSemanticSegmentation:
         head_keys = {k.removeprefix("head.") for k in seg.state_dict() if k.startswith("head.")}
         probe = SegmentationProbe(embed_dim=EXPECTED_CANVAS_DIM, num_classes=NUM_CLASSES, dropout=0.1, use_ln=True)
         assert head_keys == set(probe.state_dict().keys())
+
+
+def test_glimpse_grid_size_reaches_the_inner_canvit():
+    """The segmentation twin of the exp21 regression — see the classification test for the
+    history. Grid deliberately != 8 so eval's fallback cannot mask a failure."""
+    grid = 5
+    seg = CanViTForSemanticSegmentation(
+        backbone_name="vits16", model_config={}, num_classes=150, glimpse_grid_size=grid,
+    )
+    assert seg.glimpse_grid_size == grid
+    assert seg.canvit.glimpse_grid_size == grid, (
+        "wrapper did not propagate the grid to the inner CanViT; eval would fall back to 8"
+    )

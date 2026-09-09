@@ -172,3 +172,22 @@ class TestFuseProbe:
         logits_seq = (sigma * (x @ W_proj.T + b_proj) + mu) @ W_probe.T + b_probe
         logits_fused = x @ W_fused.T + b_fused
         assert (logits_seq - logits_fused).abs().max() < 1e-5
+
+
+def test_glimpse_grid_size_reaches_the_inner_canvit():
+    """Regression (exp21, 2026-07-08): the wrapper must push ``glimpse_grid_size`` onto the
+    bare ``CanViT`` it holds.
+
+    The eval loop reads it as ``getattr(model.canvit, "glimpse_grid_size", 8)``. When the
+    wrappers did not set it, that silently fell back to 8 and four exp21 IN1k results were
+    computed at the wrong glimpse grid — a wrong number, not a crash. The grid here is
+    deliberately NOT 8, or the fallback would satisfy the assertion it is meant to catch.
+    """
+    grid = 5
+    clf = CanViTForImageClassification(
+        backbone_name="vits16", model_config={}, n_classes=10, glimpse_grid_size=grid,
+    )
+    assert clf.glimpse_grid_size == grid
+    assert clf.canvit.glimpse_grid_size == grid, (
+        "wrapper did not propagate the grid to the inner CanViT; eval would fall back to 8"
+    )
