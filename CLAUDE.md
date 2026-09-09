@@ -98,19 +98,32 @@ Each of these has cost someone real time.
   `canvit_train` ON PURPOSE** — they pin pre-rename commits whose snapshot carries that
   package directory. Do not "modernize" them; `harness_train.sbatch` detects which name a
   snapshot holds.
-- **Those same launchers hardcode `repos/CanViT-train/...` checkpoint paths**, which stopped
-  resolving when the repo was renamed on 2026-09-03 (no symlink was left behind): ~32 under
-  `slurm/runs/` (exp23–exp36) and ~199 under `slurm/archive/`. **Decided (owner,
-  2026-09-07): leave them.** They are the record of what those jobs ran, and new work gets
-  new launchers; repoint the paths to `repos/canvit/logs/...` by hand only when you actually
-  re-run one. Nothing fails silently — a guarded launcher refuses to submit (exp36's does),
-  and the rest would die on a missing file.
+- **Checkpoint paths in launchers are ABSOLUTE, and that is deliberate.** `logs/` is
+  gitignored, so each artifact exists in exactly one place — mode 640 under group
+  `HPC_nib00021`, every parent group-traversable — and any project member reads it there
+  without copying. A path derived from the reader's own clone would find nothing. The
+  2026-09-03 rename left the old `repos/CanViT-train/...` prefix dangling; the 29 launchers
+  under `slurm/runs/` were repointed on 2026-09-09 (all 22 primary ones verified to reach
+  `sbatch` with a stub). **The ~199 under `slurm/archive/` are still stale, on purpose** —
+  they are the record of what those jobs ran; repoint one by hand if you ever re-run it.
+  Nothing fails silently: a guarded launcher refuses to submit, and the rest die on a
+  missing file.
 - **`PYTORCH_COMMIT` is load-bearing for those old launchers but must NOT be set by new
   ones.** `TRAIN_COMMIT` now pins model and trainer together; setting `PYTORCH_COMMIT` on a
   post-merge pin has no effect. The launcher warns in both failure directions.
 - **Use `.venv-cu126` for the test suite**, always. The four `test_task_digests.py` digests
   pin *CPU* numerics against hashes recorded under that torch build; `.venv` (cu130) fails
   exactly those four for that reason alone.
+- **Ask for a short `--time`; never mention QOS.** [owner, standing] A short job gets
+  scheduled sooner than a long one, which is why the long runs are chunked into 2 h array
+  tasks. Whether it formally lands in Grete's `2h` QOS or in `normal` does not matter — do
+  not use `--qos=2h` in new launchers and do not explain QOS selection in `docs/`. To buy
+  margin, lower `CFG_STEPS_PER_JOB` in a NEW run group; it cannot change on a run already
+  in progress (`_check_schedule_invariants` refuses to resume).
+- **The DINOv3 teacher is gated.** `facebook/dinov3-vitb16-pretrain-lvd1689m` is
+  `gated: manual`, so any `distill` run needs an HF account that has been granted access
+  plus `hf auth login`. It bites at startup, where the teacher's width is read. The
+  `canvit/*` checkpoints are public.
 - **Eval gates are machine-local.** Bit-identity holds only within one GPU (≈1e-5 across
   GPU types, and MIG slice size counts). Old job logs cannot gate a refactor.
 - **The wandb entity `cidas_goettingen` is shared** with other people's projects. Pin runs

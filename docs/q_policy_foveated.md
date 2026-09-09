@@ -25,14 +25,28 @@ this one runs at canvas 32, so expect that or less.
 
 The launcher refuses to submit unless the probe run has finished (it checks for the probe's
 final `step-40000.pt`, not `best.pt`, which appears at the first evaluation and would hand
-the policy a probe a few hundred steps old). That probe run **is** finished, so the guard is
-already satisfied.
+the policy a probe a few hundred steps old). That probe run **is** finished and the guard
+passes — verified 2026-09-09, after the checkpoint paths were repointed off the prefix the
+2026-09-03 repo rename left dangling.
+
+**Running this as another member of project `nib00021`:** both checkpoints below are
+readable by you as they are, and so is ADE20K; no gated or private Hub model is involved.
+Yours alone are `LOGS_DIR` and `WANDB_DIR` (the values in `.envrc.grete` are the owner's and
+not group-writable), the two service logins, and the venv
+(`UV_PROJECT_ENVIRONMENT=.venv-cu126 uv sync --no-group cuda --group cu126`). `README.md`
+§ *First-time setup for a new member of project `nib00021`* covers the first two. The
+launcher pins `TRAIN_COMMIT` / `PYTORCH_COMMIT` /
+`FOVI_COMMIT` and so needs `canvit/`, `fovi/` and `CanViT-PyTorch/` cloned as siblings;
+current code runs this recipe too (verified 2026-09-09 — a short foreground run from these
+two checkpoints reproduced `miou_t0` = 0.3768 exactly), so dropping the pins is fine if you
+would rather not clone the third.
 
 ## The two checkpoints it uses
 
 Absolute paths, readable by anyone in the `HPC_nib00021` project — the files are mode 640
-and every parent directory is group-readable, so a collaborator can point at them directly
-without copying:
+and every parent directory is group-traversable (audited 2026-09-09), so a collaborator can
+point at them directly without copying. Absolute is deliberate: `logs/` is gitignored, so
+these exist in exactly one place and a path derived from your own clone would find nothing.
 
 | flag | value |
 |---|---|
@@ -92,14 +106,27 @@ ADE20K val, `n_timesteps 5`, `canvas_grid 32`, `squish`, `fixed_scale 2.0` — a
 `best.pt`, so they are directly comparable to what the policy run reports:
 
 ```bash
+CANVIT_LOGS=/mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs
 python -m canvit.harness.evaluate ade20k \
-  --opts.ckpt <probe .pt> --cfg.model-repo <backbone .pt> \
+  --opts.ckpt "$CANVIT_LOGS/jon_exp34_ade20k_probe/ade20k-fovi-ti-1196k/checkpoints/best.pt" \
+  --cfg.model-repo "$CANVIT_LOGS/jon_exp22_full_runs/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648.pt" \
   --cfg.eval-policy random --cfg.n-timesteps 5 --cfg.canvas-grid 32 \
   --cfg.resize-mode squish --cfg.foveated-scale.fixed-scale 2.0
 ```
 
+`--opts.ckpt` is the probe and `--cfg.model-repo` the backbone: the same two files as
+[the table above](#the-two-checkpoints-it-uses). Add `--opts.out <file>.json` to keep the
+record; the numbers print either way.
+
 A trained policy should beat 0.428 at t4, and should beat random *earliest* — the claim is
 that it reaches a given mIoU in fewer glimpses, so the gap at t1–t2 matters more than at t4.
+
+**Treat that 0.428 as a soft bar.** Re-running the command above on 2026-09-09 (current
+code, an A100 MIG slice) gave t0 0.3768 / t1 0.4059 / t2 0.4174 / t3 0.4254 / **t4 0.4320**
+— `t0` identical to four decimals, as it must be, but t1–t4 up to +0.004 higher. `random`
+samples viewpoints from the global RNG with no generator of its own, so it carries that much
+run-to-run spread, and eval numbers are machine-local besides. Measure the baseline yourself
+rather than reading a sub-0.005 gap off the table as real.
 
 Also check the **shape**: mIoU must rise monotonically across t1–t4. Falling mIoU as
 glimpses accumulate is the signature of a scale mismatch between the rollout and the
@@ -142,5 +169,4 @@ re-base of 2026-07-29, `68b635f`), but it is a comparison against an open-loop b
 a verification of anything.
 
 Do not promote these into a gate or an expected result. If a later run misses them, that is a
-difference to investigate, not a regression — and note that the launcher's checkpoint paths
-predate the 2026-09-03 repo rename, so a re-run needs them repointed first.
+difference to investigate, not a regression.

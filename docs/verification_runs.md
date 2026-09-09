@@ -7,17 +7,17 @@ unit tests.
 
 | group | what it trains | runs | judged on | status |
 |---|---|---|---|---|
-| `jon_exp32_pretrain_lrdrop` | `distill` pretraining from scratch, then an LR decay phase | 4 (+5 seeds) | `val/scene_cos_raw_t9` | **phase A complete** |
+| `jon_exp32_pretrain_lrdrop` | `distill` pretraining from scratch | 4 (+5 seeds) | `val/scene_cos_raw_t9` | **complete** |
 | `jon_exp33_in1k_finetune` | `in1k` full finetunes of four pretrained backbones | 4 | top-1 | **complete** |
 | `jon_exp34_ade20k_probe` | `ade20k` frozen segmentation probes on the same four | 4 | CE and mIoU | **complete** |
 | `jon_exp35_policy_qreg_10seed` | ADE20K viewpoint policy (Q-regression), 10 seeds | 10 | CE and mIoU | **complete** |
 
 Each group below has the same two sections: **Setup** (what is run and how) and **Results**.
 
-All four groups have now produced their results. exp32's phase A is finished but its LR
-decay phase (phase B) has not been run; where that section compares against
-`jon_exp22_full_runs` it says so explicitly, because exp22 is the only campaign that
-completed a decay phase.
+All four groups have produced their results. exp32 ran at constant LR throughout: the ×0.1
+decay phase its group name refers to was never run here, so where that section compares
+against `jon_exp22_full_runs` — the only campaign that completed a decay — it says so
+explicitly.
 
 ## Shared procedure
 
@@ -27,40 +27,126 @@ Every launcher is a small self-documenting script. Submit by running it:
 bash slurm/runs/<group>/<run>.sh
 ```
 
-Each group also has a `slurm/runs/<group>/README.md` with the per-arm detail: source
-checkpoints, job ids, and the traps specific to that group. This document is the overview.
+Each group below lists the exact commands for its own arms and the checkpoints they read.
+Each also has a `slurm/runs/<group>/README.md` with the rest of the per-arm detail — job
+ids and the traps specific to that group. This document is the overview.
+
+### Running these as another member of project `nib00021`
+
+Everything these runs *read* is shared and needs no copying: the source checkpoints are mode
+640 under group `HPC_nib00021` with group-traversable parents, and so is every dataset root
+`.envrc.grete` names. Four things are yours alone:
+
+1. **Point `LOGS_DIR` and `WANDB_DIR` at a directory you own.** The values in
+   `.envrc.grete` are the owner's and are group-readable but not group-writable, so a run
+   that inherits them fails when it creates its run directory. `README.md` § *First-time
+   setup for a new member of project `nib00021`* covers this and the next item.
+2. **Log in to HuggingFace and W&B** (`hf auth login`, `wandb login`).
+3. **Build the venv:** `UV_PROJECT_ENVIRONMENT=.venv-cu126 uv sync --no-group cuda --group
+   cu126`. Jobs run in `.venv-cu126` and the launcher refuses to start without it.
+4. **For exp32 only: access to the DINOv3 teacher, which is gated.**
+   `facebook/dinov3-vitb16-pretrain-lvd1689m` is **`gated: manual`** on the Hub. **exp32
+   will not run unless you are signed in to a HuggingFace account that has been granted
+   access to that model** — request it on the model page, wait for Meta to approve, then
+   `hf auth login` so `HF_TOKEN` is set (`.envrc.grete` picks it up from
+   `$HF_HOME/token`). Without it the run fails at startup, when it reads the teacher's
+   width. Every exp32 arm needs the teacher: the two `teacherinit` arms to initialise the
+   backbone, and all four for validation, which computes teacher features on the fly.
+
+   The other four groups need no gated model. The `canvit/*` checkpoints exp33 and exp35
+   pull are public (verified 2026-09-09), so they need no token at all.
+
+The checkpoint paths in the launchers are absolute for that reason: `logs/` is gitignored,
+so each artifact exists in exactly one place, and a path derived from your own clone would
+find nothing.
 
 All launchers pin `TRAIN_COMMIT` / `PYTORCH_COMMIT` / `FOVI_COMMIT`, so each job runs a
-frozen `git archive` snapshot and is immune to later edits of the clones.
+frozen `git archive` snapshot and is immune to later edits of the clones. Pinning resolves
+the three repos as siblings of your clone (`canvit/`, `fovi/`, `CanViT-PyTorch/`), so it
+needs all three present. **Current code runs all four recipes too** — verified 2026-09-09,
+one short foreground run per task from these exact source checkpoints — so dropping the
+pins is a supported way to run them; expect numbers close to the ones below, not identical.
 
 Arrays are a **budget, not a schedule**: the job index comes from the checkpoint's resume
 state rather than `SLURM_ARRAY_TASK_ID`, so the step count advances only for jobs that
 succeed. If tasks die, resubmit the remainder — nothing is lost and nothing double-counts.
 Resubmitting also continues the same wandb run, because the checkpoint carries its run id.
 
-Keep the wall-clock request at or below **2 h**: that lands the job in Grete's `2h` QOS,
-which turns around in minutes instead of the ~day a longer request waits for.
+**Ask for a short wall clock.** Every launcher here requests 2 h or less, and that is the
+reason the long runs are chunked into arrays at all: a short job gets scheduled sooner than
+a long one, so many 2 h chunks move through the queue faster than one 12 h request. Keep it
+that way when you write a new launcher — raise `--time` only when a single chunk genuinely
+does not fit, and shrink `CFG_STEPS_PER_JOB` in a *new* run group instead if you can (it
+cannot be lowered on a run already in progress: `_check_schedule_invariants` refuses to
+resume if it changes).
+
+### Without SLURM
+
+A launcher wraps one command: `harness_train.sbatch` turns each `CFG_FOO_BAR` into
+`--cfg.foo-bar` and each `OPT_FOO_BAR` into `--opts.foo-bar`, adds the run identity and the
+data paths, and runs the trainer. So any arm can be run in the foreground instead — the
+quickest way to check a setup before committing a job to the queue. exp32's foveated
+teacher-init arm, as two steps with evaluation off:
+
+```bash
+python -m canvit.harness.run distill \
+  --cfg.run-group my_smoke --cfg.run-name exp32-fovi-teacherinit \
+  --cfg.logs-dir "$LOGS_DIR" --cfg.tracker none \
+  --cfg.webdataset-dir "$WEBDATASET_DIR" --cfg.val-dir "$VAL_DIR" \
+  --cfg.val-index-dir "$VAL_INDEX_DIR" \
+  --cfg.peak-lr 0.0004 --cfg.batch-size-per-gpu 64 --cfg.steps-per-job 8192 \
+  --cfg.model.patcher-name foveated --cfg.model.foveated-patcher.fov 35 \
+  --cfg.model.foveated-patcher.resolution 64 --cfg.model.foveated-patcher.cmf-a 0.5 \
+  --cfg.model.foveated-patcher.cart-patch-size 5 \
+  --cfg.model.foveated-patcher.arch-flag doubleres \
+  --cfg.model.foveated-patcher.conditioning.mode film \
+  --cfg.model.foveated-patcher.conditioning.film.fourier.num-features 256 \
+  --cfg.model.foveated-patcher.conditioning.film.fourier.sigma 4 \
+  --cfg.foveated-scale.fixed-scale 2.0 --cfg.init-backbone-from-teacher \
+  --opts.n-steps 2 --opts.eval-every 0
+```
+
+The other three groups translate the same way, from the `CFG_`/`OPT_`/`EXTRA_ARGS` block at
+the top of their launcher. Three things to know:
+
+- **`--cfg.run-group` is required.** It names the experiment and fixes where every artifact
+  goes (`$LOGS_DIR/<run_group>/<run_name>/`, holding `checkpoints/` and `visualization/`).
+- **distill has no `max_steps`** — it is array-shaped, so a foreground run needs
+  `--opts.n-steps <N>` or it stops after `steps_per_job`. ade20k and in1k take
+  `--cfg.max-steps` and run their whole schedule in one process.
+- **`--opts.eval-every 0` turns evaluation off.** Otherwise a run evaluates at step 0, which
+  for in1k and distill means a full 50k-image val pass before the first update.
+
+Use a launcher for anything real: the 2 h chunking, resume across array tasks and the
+shard-schedule invariant are what let a 1.4M-step pretrain finish at all.
 
 ---
 
-## exp32 — pretraining with an LR decay phase
+## exp32 — pretraining from scratch
 
 ### Setup
 
 Four pretrains from scratch: uniform / foveated patcher × with and without teacher init.
-Warmup 100k → constant 4e-4, then a single ×0.1 drop to 4e-5 for 204,800 further steps.
+Warmup 100k → constant 4e-4 for the whole run. No source checkpoint — the only inputs are
+the IN21k shards (`$WEBDATASET_DIR`) and the val image folder (`$VAL_DIR`).
 
-**Two phases, because there is no in-run LR-drop feature.** Phase A is `exp32-<arm>.sh`;
-phase B is `exp32-<arm>-lrdrop.sh` (flat 4e-5, 25 jobs). The drop point is a FILENAME
-(`CFG_SEED_CKPT=.../step-<N>.pt`), so it cannot fire early, late, or twice however many
-array tasks fail, and phase B refuses to submit until that file exists.
+```bash
+bash slurm/runs/exp32_pretrain_lrdrop/exp32-uniform16-teacherinit.sh   # 77 x 8192 =   630,784
+bash slurm/runs/exp32_pretrain_lrdrop/exp32-uniform16.sh               # 176 x 8192 = 1,441,792
+bash slurm/runs/exp32_pretrain_lrdrop/exp32-fovi-teacherinit.sh        # 138 x 8192 = 1,130,496
+bash slurm/runs/exp32_pretrain_lrdrop/exp32-fovi.sh                    # 245 x 8192 = 2,007,040
+```
 
-| arm | phase-A target | drop step | phase B |
-|---|---|---|---|
-| `exp32-uniform16-teacherinit` | 630,784 | 630,784 | yes |
-| `exp32-uniform16` | 1,441,792 | 1,441,792 | yes |
-| `exp32-fovi-teacherinit` | 1,130,496 | 1,130,496 | yes |
-| `exp32-fovi` | 2,007,040 | — | no |
+`--cfg.init-backbone-from-teacher` is what the `teacherinit` arms add; the foveated arms add
+the patcher block and `--cfg.foveated-scale.fixed-scale 2.0`. Both are in `EXTRA_ARGS` at
+the top of each launcher.
+
+**A ×0.1 LR decay is not part of this.** These four are the constant-LR runs, which is all
+that is needed to see the stack train end to end. A decay phase does improve the final
+number — see the exp22 comparison in the results below, and `exp32-<arm>-lrdrop.sh` if you
+want to run one — but it is a second campaign seeded from one of these runs' checkpoints,
+not a flag. Its `CFG_SEED_CKPT` names an exact `step-<N>.pt`, so it refuses to submit until
+that file exists (two of the three currently do refuse: see the results).
 
 **Judge on `val/scene_cos_raw_t9`** — the raw scene cosine at the last of 10 eval glimpses.
 This is the same scalar the trainer logs as `eval/val_metric` and selects `best.pt` on.
@@ -70,7 +156,7 @@ coarse-to-fine, foveated arms under a fixation grid at their training scale (2.0
 
 ### Results
 
-Phase A finished for all four arms. Best `val/scene_cos_raw_t9`, and where each stopped:
+All four arms finished. Best `val/scene_cos_raw_t9`, and where each stopped:
 
 | arm | reached / target | best | at step | final | drift |
 |---|---|---|---|---|---|
@@ -80,27 +166,29 @@ Phase A finished for all four arms. Best `val/scene_cos_raw_t9`, and where each 
 | `exp32-fovi-teacherinit` | 1,130,496 / 1,130,496 | **0.9182** | 729,088 | 0.8750 | **−0.0432** |
 
 **`exp32-fovi-teacherinit` degraded in the second half.** It peaked at step 729k and fell
-0.043 by 1.12M while the other three arms drifted ≤0.0002. Its phase-B drop file exists, but
-seeding a decay phase from step-1130496 would start from the degraded state, not the peak.
-That anomaly is unexplained and worth diagnosing before any decay run on this arm.
+0.043 by 1.12M while the other three arms drifted ≤0.0002. That anomaly is unexplained, and
+worth diagnosing before this arm is used as anything but a smoke test — including as the
+seed of a decay run, which from step-1130496 would start from the degraded state, not the
+peak.
 
-The two `uniform16` arms are one 8192-step chunk short of their drop step because both lost
-their final array task to a node fault (`ggpu150`, `NVML: GPU is lost`, 2026-08-06 09:29).
-Their phase-B launchers gate on an exact filename, so each needs a one-task top-up before
-phase B can be submitted.
+The two `uniform16` arms are 8192 steps short of their target because both lost their final
+array task to a node fault (`ggpu150`, `NVML: GPU is lost`, 2026-08-06 09:29). Their curves
+had long flattened, so the numbers stand; a re-run needs no special handling.
 
-**Comparison with `jon_exp22_full_runs`**, the only campaign that ran a decay phase:
+**Comparison with `jon_exp22_full_runs`, which did run a decay phase.** This is where the
+LR decay left out of the setup above shows up:
 
-| arm | exp32 phase A | exp22 phase A | exp22 after decay |
+| arm | exp32 (constant LR) | exp22 (constant LR) | exp22 after decay |
 |---|---|---|---|
 | `uniform16-teacherinit` | 0.9390 @ 614k | 0.9398 @ 639k | 0.9477 (4e-5), 0.9481 (+4e-6) |
 | `uniform16` | 0.9186 @ 1,425k | 0.9199 @ 1,516k | 0.9262 (4e-5) |
 | `fovi` | 0.9258 @ 1,999k | 0.9248 @ 1,942k | *no decay was run* |
 | `fovi-teacherinit` | see above | 0.9362 @ 1,196k | 0.9423 (4e-5) |
 
-Three arms reproduce exp22's phase A within 0.001–0.002. The decay phase is worth
-+0.006–0.008 wherever it was run, so exp32's phase-A numbers are not directly comparable to
-exp22's decayed ones.
+Three arms reproduce exp22's constant-LR phase within 0.001–0.002 — which is the point of
+the campaign. **The decay is worth +0.006–0.008 wherever it was run**, so the exp32 column
+is a floor: these recipes reach a little higher than the numbers here if you add a decay
+phase, and they are not directly comparable to exp22's decayed column.
 
 **Differences between exp22 and exp32** — why these are reference numbers, not targets:
 
@@ -108,10 +196,8 @@ exp22's decayed ones.
    shard (`shard-001751`, 4096 samples). Different standardization of the DINOv3 targets,
    so the loss scale is not identical and curves do not overlay exactly.
 2. **Decay schedule.** exp22's `uniform16-teacherinit` got two drops (4e-5 then 4e-6) and
-   its `fovi` arm none; exp32 plans exactly one per arm.
-3. **Drop steps.** exp22 dropped at 638,976 / 1,196,032 / 1,515,520; exp32 at
-   630,784 / 1,130,496 / 1,441,792.
-4. **Seeding.** The older trainer never called `torch.manual_seed`, so each exp22 run drew
+   its `fovi` arm none; exp32 ran none at all.
+3. **Seeding.** The older trainer never called `torch.manual_seed`, so each exp22 run drew
    an unreproducible random init. exp32 seeds before `build_model`.
 
 ### Seed-spread runs
@@ -158,6 +244,27 @@ indistinguishable without several seeds each.
 
 ### Setup
 
+```bash
+bash slurm/runs/exp33_in1k_finetune/in1k-uni16ti-803k.sh
+bash slurm/runs/exp33_in1k_finetune/in1k-uni16-1516k.sh
+bash slurm/runs/exp33_in1k_finetune/in1k-fovi-ti-1196k.sh
+bash slurm/runs/exp33_in1k_finetune/in1k-fovi-1901k.sh
+```
+
+**Sources.** One exp22 pretrain per arm, as `--cfg.model-repo`, all under
+`$EXP22 = /mnt/vast-nhr/projects/nib00021/jonathan/repos/canvit/logs/jon_exp22_full_runs`:
+
+| arm | `--cfg.model-repo` |
+|---|---|
+| `in1k-uni16ti-803k` | `$EXP22/exp22-uniform16-teacherinit-lrdrop2-803k/checkpoints/step-16384-hf` |
+| `in1k-uni16-1516k` | `$EXP22/exp22-uniform16-lrdrop-1516k/checkpoints/step-319488-hf` |
+| `in1k-fovi-ti-1196k` | `$EXP22/exp22-fovi-teacherinit-lrdrop-1196k/checkpoints/step-155648-hf` |
+| `in1k-fovi-1901k` | `$EXP22/exp22-fovi/checkpoints/step-1900544-hf` |
+
+All four also take `--cfg.probe-repo canvit/dinov3-vitb16-lvd1689m-in1k-512x512-linear-clf-probe`
+from the Hub, which is fused into the classification head (TPU parity — see the loss check
+below). The two foveated arms add `--cfg.foveated-scale.fixed-scale 2.0`.
+
 Four finetunes, one per pretrained backbone; the TPU recipe batch-adapted for one A100.
 49 array jobs × 8192 = 401,408 steps each (~20 epochs at batch 64). `n_timesteps=4`, not the
 task default of 10. Foveated arms evaluate under `random` with
@@ -198,9 +305,22 @@ arrays were sized with no slack. Its curve had already flattened, so the number 
 
 ### Setup
 
-Four probe runs on the same four backbones. Frozen backbone via the `probe` preset, 40,000
-steps, random-view training, `n_timesteps 10`, scene 512, `canvas_grid 32`. Single GPU — the
-ADE20K task does not support DDP.
+```bash
+bash slurm/runs/exp34_ade20k_probe/ade20k-uni16ti-803k.sh
+bash slurm/runs/exp34_ade20k_probe/ade20k-uni16-1516k.sh
+bash slurm/runs/exp34_ade20k_probe/ade20k-fovi-ti-1196k.sh
+bash slurm/runs/exp34_ade20k_probe/ade20k-fovi-1901k.sh
+```
+
+**Sources.** The same four exp22 pretrains as exp33, one per arm as `--cfg.model-repo`
+(`ade20k-uni16ti-803k` ← `exp22-uniform16-teacherinit-lrdrop2-803k/checkpoints/step-16384-hf`,
+and so on down the exp33 table). The segmentation head is trained here, so there is no
+probe to supply. The two foveated arms add `--cfg.foveated-scale.fixed-scale 2.0`.
+
+Four probe runs on the same four backbones. Frozen backbone — which is the ade20k default
+(`cfg.mode = frozen`), so the launchers pass no `--preset`; `--preset probe` is the same
+spec. 40,000 steps, random-view training, `n_timesteps 10`, scene 512, `canvas_grid 32`.
+Single GPU — the ADE20K task does not support DDP.
 
 **`resize_mode=squish` for every arm including foveated.** It distorts aspect ratio, so it
 is not the right choice for a human-viewing comparison; whichever mode is used must be
@@ -279,14 +399,22 @@ then, do not read a sub-pp difference between two c2f runs as real.
 
 ### Setup
 
+```bash
+for s in 0 1 2 3 4 5 6 7 8 9; do
+  SEED=$s bash slurm/runs/exp35_policy_qreg_10seed/policy-qreg-s0.sh
+done
+```
+
+**Sources: none local.** Both halves come from the Hub, which makes this the one group with
+no dependency on exp22 or on anything under `logs/` — the backbone is
+`Ade20kConfig.model_repo`'s default (`canvit/canvitb16-add-vpe-pretrain-g128px-s512px-in21k-dv3b16-2026-02-02`,
+so `CFG_MODEL_REPO` is deliberately unset) and the probe is
+`--cfg.probe-repo canvit/probe-ade20k-40k-s512-c64-in21k`.
+
 A `ViewpointScorer` trained by Q-regression against a **frozen** backbone and probe, so that
 segmentation improves as fast as possible per glimpse; at deployment it takes the argmax over
 its candidate grid. `--preset policy_only`, 9000 steps, 5 timesteps, batch 16, canvas grid
 64, `resize_mode=squish`. Ten seeds.
-
-The frozen backbone needs no flag — `Ade20kConfig.model_repo`'s default is the published c64
-pretrain — and `CFG_MODEL_REPO` is deliberately unset, which makes this group independent of
-exp32–34.
 
 **9000 steps rather than 8000**, because the loop evaluates when `step % val_every == 0` and
 never reaches `max_steps`; at 8000 the last eval would be at 7000. The extra 1000 steps buy a
